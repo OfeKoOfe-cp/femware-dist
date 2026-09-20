@@ -224,8 +224,15 @@ namespace features::combat {
 		const auto next_primary = memory::read<int>( shared_ctx.weapon + SCHEMA( "C_BasePlayerWeapon", "m_nNextPrimaryAttackTick"_hash ) );
 		const auto tick_base = memory::read<int>( local.controller + SCHEMA( "CBasePlayerController", "m_nTickBase"_hash ) );
 
-		const auto can_attack = ( client_tick >= next_primary || tick_base >= next_primary || next_primary <= 0 ) &&
-			( tick_base > g_shared.last_shoot_tick( ) || g_shared.last_shoot_tick( ) == 0 ) &&
+		// Cycle gate between bursts: once a shot has been emitted, withhold the
+		// next burst until the weapon's per-shot cycle has elapsed. This stops
+		// burst-per-tick spam when next-attack reads go stale.
+		const auto last_shoot = g_shared.last_shoot_tick( );
+		const auto cooldown_ticks = std::max( 2, static_cast< int >( std::ceil( g_shared.cycle_time( ) / cstypes::tick_interval ) ) );
+		const auto cycle_ready = last_shoot == 0 || ( tick_base - last_shoot ) >= cooldown_ticks;
+
+		const auto can_attack = cycle_ready &&
+			( client_tick >= next_primary || tick_base >= next_primary || next_primary <= 0 ) &&
 			!memory::read<bool>( shared_ctx.weapon + SCHEMA( "C_CSWeaponBase", "m_bInReload"_hash ) ) &&
 			memory::read<int>( shared_ctx.weapon + SCHEMA( "C_BasePlayerWeapon", "m_iClip1"_hash ) ) > 0;
 
@@ -653,6 +660,16 @@ namespace features::combat {
 				return;
 			}
 
+			// Same-target re-fire hold: the last shot at this pawn either
+			// missed (resolved) or is still in flight. Keep the aim dialed on
+			// it but hold the trigger, so the ragebot stops machine-gunning a
+			// player it keeps whiffing on.
+			if ( g_shared.target_held( best.hit.pawn, shared_ctx.current_time ) )
+			{
+				this->fire_gun( cmd, best, false, best.hit.source_eye.position, local, false, true );
+				return;
+			}
+
 			const auto dt = try_doubletap( true, config.doubletap_lethal.value, best.is_lethal( ) );
 			if ( dt == doubletap_state::hold )
 			{
@@ -772,6 +789,21 @@ namespace features::combat {
 
 		if ( ready_to_fire && allow_fire )
 		{
+			// Same-target re-fire hold: keep aiming at the whiffed/in-flight
+			// target but hold the trigger until the prior shot resolves.
+			if ( g_shared.target_held( best.hit.pawn, shared_ctx.current_time ) )
+			{
+				this->fire_gun( cmd, best, false, best.hit.source_eye.position, local, false, true );
+
+				if ( duckpeek_active )
+				{
+					this->m_duckpeek_reduck = true;
+					this->m_release_duck_for_shot = false;
+				}
+
+				return;
+			}
+
 			const auto dt = try_doubletap( true, config.doubletap_lethal.value, best.is_lethal( ) );
 			if ( dt == doubletap_state::hold )
 			{
@@ -1963,6 +1995,7 @@ score += h.penetrated ? 0.0f : 250.0f;
 		}
 
 		g_shared.last_shoot_tick( ) = tick_base;
+		g_shared.note_fired( tgt.hit.pawn, shared_ctx.current_time );
 
 		if ( settings::g_misc.m_impacts.console_log.value && tgt.hit.record )
 		{

@@ -271,7 +271,7 @@ namespace features::combat {
 	void misc::antiaim::on_override_view( std::uintptr_t view_setup ) const
 	{
 		const auto& cfg = settings::g_combat.m_antiaim;
-		if ( !cfg.enabled.value || !this->m_antiaim_active )
+		if ( !cfg.enabled.value )
 		{
 			return;
 		}
@@ -740,8 +740,14 @@ namespace features::combat {
 			const float corrected_forward = cos_delta * forward_move + sin_delta * side_move;
 			const float corrected_side = cos_delta * side_move - sin_delta * forward_move;
 
-			base->set_forwardmove( std::clamp( corrected_forward, -1.0f, 1.0f ) );
-			base->set_leftmove( std::clamp( corrected_side, -1.0f, 1.0f ) );
+			// Preserve the authored magnitude instead of clamping each axis:
+			// a diagonal (forward+side active) rotates to a near-cardinal and a
+			// per-axis clamp then both distorts its direction and shortens it,
+			// which makes strafing feel heavy and jittery.
+			const auto corrected_magnitude = std::sqrtf( corrected_forward * corrected_forward + corrected_side * corrected_side );
+			const auto magnitude_scale = corrected_magnitude > 1.001f ? 1.0f / corrected_magnitude : 1.0f;
+			base->set_forwardmove( corrected_forward * magnitude_scale );
+			base->set_leftmove( corrected_side * magnitude_scale );
 
 			// Rotate any already-authored subtick analog steps by the same delta.
 			// While moving, CS2 composes the real WASD/analog input as subtick
@@ -768,8 +774,13 @@ namespace features::combat {
 					const auto analog_forward = step->analog_forward_delta( );
 					const auto analog_left = step->analog_left_delta( );
 
-					step->set_analog_forward_delta( std::clamp( cos_delta * analog_forward + sin_delta * analog_left, -1.0f, 1.0f ) );
-					step->set_analog_left_delta( std::clamp( cos_delta * analog_left - sin_delta * analog_forward, -1.0f, 1.0f ) );
+					const float analog_corrected_forward = cos_delta * analog_forward + sin_delta * analog_left;
+					const float analog_corrected_left = cos_delta * analog_left - sin_delta * analog_forward;
+
+					const auto analog_magnitude = std::sqrtf( analog_corrected_forward * analog_corrected_forward + analog_corrected_left * analog_corrected_left );
+					const auto analog_scale = analog_magnitude > 1.001f ? 1.0f / analog_magnitude : 1.0f;
+					step->set_analog_forward_delta( analog_corrected_forward * analog_scale );
+					step->set_analog_left_delta( analog_corrected_left * analog_scale );
 				}
 			}
 
