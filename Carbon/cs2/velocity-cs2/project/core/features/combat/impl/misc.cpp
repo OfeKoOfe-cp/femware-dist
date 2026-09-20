@@ -16,6 +16,8 @@ namespace features::combat {
 		this->m_should_correct = false;
 		this->m_old_angles = {};
 		this->m_modified_angles = {};
+		this->m_last_real_angles = {};
+		this->m_last_real_valid = false;
 		this->m_lby_elapsed_ticks = 0;
 		this->m_lby_break_ticks = 0;
 		this->m_lby_break_now = false;
@@ -56,6 +58,8 @@ namespace features::combat {
 				if ( view_ok )
 				{
 					math::helpers::normalize_angles( real );
+					this->m_last_real_angles = real;
+					this->m_last_real_valid = true;
 					systems::g_input.set_view_angles( real );
 					if ( const auto eye_offset = SCHEMA( "C_CSPlayerPawn", "m_angEyeAngles"_hash ) )
 					{
@@ -171,6 +175,13 @@ namespace features::combat {
 		}
 		math::helpers::normalize_angles( real_angles );
 
+		// Authoritative real reference for the render thread (override_view):
+		// the last known real view, refreshed every active tick. This is what
+		// the camera uses when the live engine input view is unavailable or
+		// momentarily re-seeded with the fake.
+		this->m_last_real_angles = real_angles;
+		this->m_last_real_valid = true;
+
 		// Legacy lby breaker: while grounded and effectively stationary the fake
 		// pose holds still, so on a ~1.1 s cadence we force a single sharp tick
 		// toward the pure back direction to break prediction/animation habits.
@@ -201,6 +212,19 @@ namespace features::combat {
 
 		this->m_old_angles = real_angles;
 		this->m_antiaim_active = true;
+
+		// Movement lock: while the player is actively steering (move keys held,
+		// or already travelling), the per-tick flip styles must not diverge from
+		// the real yaw. Rotating the movement basis by a non-cardinal fake
+		// offset makes W re-encode into W+A/W+D combos, so walking veers
+		// sideways and feels "hard to control". When moving, send the real
+		// yaw so the walk stays native; flips resume the moment the player
+		// stands.
+		const auto& pre = systems::g_prediction.pre( );
+		constexpr auto move_keys = cstypes::command_buttons::in_forward | cstypes::command_buttons::in_back |
+			cstypes::command_buttons::in_moveleft | cstypes::command_buttons::in_moveright;
+		this->m_movement_input = ( cmd->buttons.value & move_keys ) != 0 ||
+			( pre.velocity.x * pre.velocity.x + pre.velocity.y * pre.velocity.y ) > ( 8.0f * 8.0f );
 
 		this->m_modified_angles = this->m_old_angles;
 		this->m_modified_angles.x = this->get_pitch( this->m_old_angles.x );
@@ -288,26 +312,55 @@ namespace features::combat {
 
 		// The transmitted command carries the fake yaw, and command prediction
 		// rewrites the pawn's eye angles from it after our create_move write, so
-		// the render camera snaps to the fake and back every tick ("AA flicks the
-		// camera"). Re-anchor the final view setup to the LIVE engine input view
-		// each frame: it is continuously updated by the mouse layer, so the
-		// camera tracks the mouse smoothly (no freeze -- a per-tick snapshot
-		// makes camera movement feel laggy/fighting) and never shows the fake.
-		bool view_ok{};
-		const auto live_view = systems::g_input.get_view_angles( &view_ok );
-		if ( view_ok )
+		// the render camera can snap to the fake and back within a frame ("AA
+		// flicks the camera"). Re-anchor the final view setup to the user's real
+		// angles every frame. Prefer the LIVE engine input view -- it is fed by
+		// the mouse layer between ticks, so the camera tracks the mouse
+		// continuously instead of lagging behind a per-tick snapshot -- but
+		// reject it when it looks tainted by the fake:
+		//   - a jump > 135 deg from the last known real yaw cannot be mouse
+		//     input (per-frame human flicks stay well under that), and
+		//   - while AA is active, a live yaw sitting ON the yaw we last sent is
+		//     the fake itself (every style interleaves the sent pose into the
+		//     pipelined input baseline on some frames).
+		// In either case fall back to the authoritative last-real snapshot
+		// recorded in create_move. If even that is missing (just enabled, or
+		// the view node was unavailable), write the live value as read.
+		auto target_angles = this->m_last_real_angles;
+		if ( this->m_last_real_valid )
 		{
-			memory::write<math::vector3>( view_setup + 0x4b8, live_view );
-
-			// Keep the pawn's eye angles true for the whole frame too, not just
-			// at the end of create_move: prediction rewrites them from the faked
-			// command right after our tick and the render thread reads them
-			// between ticks (third-person orbit, viewmodel, radar). Without this
-			// the model/animation layer still sees a fake<->real flicker.
-			if ( const auto eye_offset = SCHEMA( "C_CSPlayerPawn", "m_angEyeAngles"_hash ) )
+			bool view_ok{};
+			auto live_view = systems::g_input.get_view_angles( &view_ok );
+			if ( view_ok )
 			{
-				memory::write<math::vector3>( local.pawn + eye_offset, live_view );
+				math::helpers::normalize_angles( live_view );
+
+				auto last_real_delta = live_view.y - this->m_last_real_angles.y;
+				math::helpers::normalize_angle( last_real_delta );
+
+				auto sent_fake_delta = live_view.y - this->m_modified_angles.y;
+				math::helpers::normalize_angle( sent_fake_delta );
+
+				const auto radical_jump = std::fabsf( last_real_delta ) >= 135.0f;
+				const auto sits_on_sent_fake = this->m_antiaim_active && std::fabsf( sent_fake_delta ) <= 5.0f;
+
+				if ( !radical_jump && !sits_on_sent_fake )
+				{
+					target_angles = live_view;
+				}
 			}
+		}
+
+		memory::write<math::vector3>( view_setup + 0x4b8, target_angles );
+
+		// Keep the pawn's eye angles true for the whole frame too, not just
+		// at the end of create_move: prediction rewrites them from the faked
+		// command right after our tick and the render thread reads them
+		// between ticks (third-person orbit, viewmodel, radar). Without this
+		// the model/animation layer still sees a fake<->real flicker.
+		if ( const auto eye_offset = SCHEMA( "C_CSPlayerPawn", "m_angEyeAngles"_hash ) )
+		{
+			memory::write<math::vector3>( local.pawn + eye_offset, target_angles );
 		}
 	}
 
@@ -424,11 +477,6 @@ namespace features::combat {
 
 	float misc::antiaim::get_pitch( float view_pitch )
 	{
-		if ( settings::g_combat.m_antiaim.yaw_style == settings::combat::antiaim::yaw_mode::legit_desync )
-		{
-			return view_pitch;
-		}
-
 		switch ( settings::g_combat.m_antiaim.pitch )
 		{
 		case settings::combat::antiaim::pitch_mode::down:
@@ -665,19 +713,39 @@ namespace features::combat {
 		switch ( aa.yaw_style )
 		{
 		case settings::combat::antiaim::yaw_mode::desync:
-			yaw += aa.desync_amount.value > 0.0f ? aa.desync_amount.value : 0.0f;
+			{
+				// While steering, keep the sent delta from the real yaw a
+				// cardinal rotation: a non-orthogonal offset re-encodes W into
+				// W+A/W+D combos each tick, the engine's 8-way button decode
+				// then fights the already-rotated analog values, and the subtick
+				// move baseline drifts -- together that sheds walk/bhop speed and
+				// makes the run feel heavy. Snap to the nearest 90 while moving
+				// (the body still shows a full side flip); restore the configured
+				// amount once standing so peak desync stays available.
+				const auto amount = std::max( 0.0f, aa.desync_amount.value );
+				const auto effective = this->m_movement_input
+					? std::round( amount / 90.0f ) * 90.0f
+					: amount;
+				yaw += effective;
+			}
 			break;
 		case settings::combat::antiaim::yaw_mode::jitter:
 			{
-				const auto range = std::max( 0.0f, aa.jitter_range.value );
-				const auto flip = ( ++this->m_jitter_flip ) % 2 == 0 ? 1.0f : -1.0f;
-				yaw += flip * range;
+				if ( !this->m_movement_input )
+				{
+					const auto range = std::max( 0.0f, aa.jitter_range.value );
+					const auto flip = ( ++this->m_jitter_flip ) % 2 == 0 ? 1.0f : -1.0f;
+					yaw += flip * range;
+				}
 			}
 			break;
 		case settings::combat::antiaim::yaw_mode::legit_desync:
 			{
-				const auto flip = ( ++this->m_jitter_flip ) % 2 == 0 ? 1.0f : -1.0f;
-				yaw += flip * 26.0f;
+				if ( !this->m_movement_input )
+				{
+					const auto flip = ( ++this->m_jitter_flip ) % 2 == 0 ? 1.0f : -1.0f;
+					yaw += flip * 26.0f;
+				}
 			}
 			break;
 		case settings::combat::antiaim::yaw_mode::backward:

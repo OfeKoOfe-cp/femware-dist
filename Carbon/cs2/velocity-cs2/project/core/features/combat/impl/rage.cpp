@@ -1855,13 +1855,6 @@ score += h.penetrated ? 0.0f : 250.0f;
 			return;
 		}
 
-		// A lethal-charge hold is not a shot: no firing state (AA keeps its pose,
-		// fakelag keeps hiding, impacts stay silent) and no trigger pull.
-		if ( !aim_only )
-		{
-			this->m_firing_this_tick = true;
-		}
-
 		const auto base = cmd->csgo_user_cmd.mutable_base( );
 		const auto tick_base = memory::read<int>( local.controller + SCHEMA( "CBasePlayerController", "m_nTickBase"_hash ) );
 		const auto& shared_ctx = g_shared.ctx( );
@@ -1993,6 +1986,13 @@ score += h.penetrated ? 0.0f : 250.0f;
 
 			return;
 		}
+
+		// Only mark firing state once the shot is actually being emitted. Setting
+		// it before the no-spread refusal above made refused ticks look like
+		// shots: AA held its pose, fakelag stopped hiding and the engine got no
+		// trigger pull that tick, which on fast-firing pistols turned the aim into
+		// stutter and stray bullets.
+		this->m_firing_this_tick = true;
 
 		g_shared.last_shoot_tick( ) = tick_base;
 		g_shared.note_fired( tgt.hit.pawn, shared_ctx.current_time );
