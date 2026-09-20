@@ -61,31 +61,21 @@ namespace features::combat {
 					{
 						memory::write<math::vector3>( local.pawn + eye_offset, real );
 					}
-					if ( const auto& cfg = settings::g_combat.m_antiaim; false )
-				{
-				}
+					
 
-				if ( const auto eye_offset = SCHEMA( "C_CSPlayerPawn", "m_angEyeAngles"_hash ) )
-				{
-					memory::write<math::vector3>( local.pawn + eye_offset, real );
-				}
-
-				// The ragebot finalized the aim into this same command's base view
-				// angles, then we anchored the camera to the real input view, but
-				// the AA body that normally refreshes the movement-correction
-				// baseline (m_old_angles -> m_modified_angles) was skipped by the
-				// early return. The NEXT active tick would then correct movement
-				// against a stale pre-shot yaw (the rage tick never updated it),
-				// which makes input feel inverted/sideways right after a shot.
-				// Re-anchor the correction baseline to the fired real angles here
-				// so the following tick composes from the true post-shot view.
+				// Keep the indicator pinned to the last SENT fake. Calling
+				// get_yaw here would consume a jitter/legit_desync flip without
+				// transmitting a fake, so the body's L/R phase drifts relative
+				// to what the server actually saw right after every shot
+				// ("messy AA after firing").
 				this->m_old_angles = real;
 				this->m_modified_angles = real;
 				math::helpers::normalize_angles( this->m_old_angles );
-				this->m_modified_angles.y = this->get_yaw( this->m_old_angles, local );
+				this->m_modified_angles.y = this->m_indicator_yaw;
 				this->m_should_correct = false;
+				}
+				return;
 			}
-			return;
 		}
 
 		if ( systems::g_local.is_in_cinematic( ) || systems::g_local.is_in_time_freeze( ) )
