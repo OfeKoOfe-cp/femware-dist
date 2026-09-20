@@ -50,6 +50,17 @@ namespace features::combat {
 			return;
 		}
 
+		// Unsafe mode: the entire rage section is locked out until the user
+		// opts in via Settings -> Unsafe mode. Reached before any aim/fire
+		// work, so nothing can be staged or emitted behind the lock on a
+		// locked tick -- and the per-tick reset of m_firing_this_tick at the
+		// top of this function guarantees a shot staged on a previous unlocked
+		// frame can never leak across into a locked frame.
+		if ( !settings::g_cheat.unsafe_mode.value )
+		{
+			return;
+		}
+
 		if ( is_knife )
 		{
 			if ( !g_shared.can_shoot( cmd, local.controller ) )
@@ -101,13 +112,27 @@ namespace features::combat {
 
 	void rage::on_render( xdraw::draw_list& draw_list )
 	{
-		this->draw_penetration_crosshair( draw_list );
+	// Draw the penetration crosshair, then surface the "enable unsafe mode"
+	// notice before the early debug-only return so it is visible regardless of
+	// the multipoint debug flag.
+	this->draw_penetration_crosshair( draw_list );
 
-		const auto& config = settings::g_combat.m_ragebot.get_group( g_shared.ctx( ).weapon_type );
-		if ( !config.debug_multipoints.value )
-		{
-			return;
-		}
+	if ( settings::g_combat.m_ragebot.enabled && !settings::g_cheat.unsafe_mode.value )
+	{
+		const auto [sw, sh] = xdraw::viewport_size( );
+		const auto label = "Enable unsafe mode in Settings -> Rage to use the ragebot";
+		xdraw::push_font( rendering::g_fonts.inter_medium[ rendering::fonts::size::normal ] );
+		const auto [tw, th] = xdraw::measure_text( label );
+		const auto col = xdraw::color{ 255, 80, 80, 220 };
+		draw_list.text( std::floorf( sw * 0.5f - tw * 0.5f ), std::floorf( sh * 0.12f ), label, col, xdraw::text_style::outlined );
+		xdraw::pop_font( );
+	}
+
+	const auto& config = settings::g_combat.m_ragebot.get_group( g_shared.ctx( ).weapon_type );
+	if ( !config.debug_multipoints.value )
+	{
+		return;
+	}
 
 		std::lock_guard lock( m_debug_mtx );
 
@@ -637,7 +662,12 @@ namespace features::combat {
 			return hits_out;
 		};
 
-		if ( config.no_spread.value )
+		// No-spread correction is an unsafe resolver path; it only resolves
+		// when the user opted into Settings -> Unsafe mode -> Nospread
+		// resolver. With the feature off we fall through to the normal
+		// fire path below so the ragebot still aims but never runs the
+		// resolver (safe default).
+		if ( config.no_spread.value && settings::g_cheat.m_unsafe_features.nospread_resolver.value )
 		{
 			shared_ctx.inaccuracy = g_shared.get_inaccuracy( false );
 			auto all_hits = scan_from_eye_candidates( {}, shared_ctx.inaccuracy );
