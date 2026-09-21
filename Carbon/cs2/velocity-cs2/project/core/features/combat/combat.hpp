@@ -330,6 +330,11 @@ namespace features::combat {
 			// every yaw style but "backward" flicker).
 			bool m_steer_valid{};
 			float m_steer_offset{};
+
+			// Last enemy the threat-steered back yaw snapped to. Kept so
+			// near-tie targets don't make the base yaw ping-pong between them
+			// every tick (the "constant spin" with several players alive).
+			std::uintptr_t m_last_yaw_target_pawn{};
 		};
 
 		class duckpeek

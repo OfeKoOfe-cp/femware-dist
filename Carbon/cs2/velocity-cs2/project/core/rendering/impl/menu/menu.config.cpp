@@ -76,6 +76,137 @@ namespace rendering {
 			return result;
 		}
 
+		// Theme share: a theme-only payload (palette + flavor + the entire
+		// token override set + logo slot) packed through the same LZ4 + base64
+		// path the config share codes use, so a look can be handed to someone
+		// else without dragging a whole config along.
+		static inline std::string theme_share_encode( )
+		{
+			const auto& th = settings::g_cheat.m_theme;
+
+			nlohmann::json j;
+			j[ "m" ] = "fw-theme-1";
+			j[ "p" ] = static_cast< int >( th.selected.value );
+			j[ "f" ] = static_cast< int >( th.flavor.value );
+			j[ "ct" ] = th.use_custom_tokens.value;
+
+			const auto put = [ &j ]( const char* key, const xdraw::color& c )
+			{
+				j[ key ] = { c.r, c.g, c.b, c.a };
+			};
+
+			put( "a",   th.custom_accent.value );
+			put( "a2",  th.custom_accent_2.value );
+			put( "dk",  th.custom_dark.value );
+			put( "cd",  th.custom_card.value );
+			put( "el",  th.custom_elevated.value );
+			put( "tb",  th.custom_title_bar.value );
+			put( "tbg", th.custom_tab_bg.value );
+			put( "tx",  th.custom_text.value );
+			put( "txd", th.custom_text_dim.value );
+			put( "bd",  th.custom_border.value );
+			put( "gb",  th.custom_group_border.value );
+			put( "ln",  th.custom_line.value );
+			put( "eg",  th.custom_edge.value );
+			put( "ta",  th.custom_tab_active.value );
+			put( "cb",  th.custom_checkbox_on.value );
+			put( "sl",  th.custom_slider_fill.value );
+			put( "slb", th.custom_slider_bg.value );
+
+			j[ "lo" ] = th.logo_color_override.value;
+			put( "lc",  th.logo_color.value );
+
+			const auto packed = config::compress::deflate( j.dump( ) );
+			if ( packed.empty( ) )
+			{
+				return {};
+			}
+
+			return config::base64::encode( packed.data( ), packed.size( ) );
+		}
+
+		static inline bool theme_share_decode( std::string code )
+		{
+			if ( code.empty( ) )
+			{
+				return false;
+			}
+
+			std::string cleaned;
+			cleaned.reserve( code.size( ) );
+			for ( auto c : code )
+			{
+				if ( c != ' ' && c != '\n' && c != '\r' && c != '\t' )
+				{
+					cleaned.push_back( c );
+				}
+			}
+
+			const auto decoded = config::base64::decode( cleaned );
+			if ( !decoded )
+			{
+				return false;
+			}
+
+			const auto json_str = config::compress::inflate( decoded->data( ), decoded->size( ) );
+			if ( !json_str )
+			{
+				return false;
+			}
+
+			try
+			{
+				const auto j = nlohmann::json::parse( *json_str );
+				if ( j.value( "m", std::string{} ) != "fw-theme-1" )
+				{
+					return false;
+				}
+
+				auto& th = settings::g_cheat.m_theme;
+				th.selected.value = static_cast< settings::theme::palette >( j.value( "p", 0 ) );
+				th.flavor.value   = static_cast< settings::theme::catppuccin_flavor >( j.value( "f", 0 ) );
+				th.use_custom_tokens.value = j.value( "ct", true );
+
+				const auto get = [ &j ]( const char* key, config::col& c )
+				{
+					if ( !j.contains( key ) || !j[ key ].is_array( ) || j[ key ].size( ) < 4 )
+					{
+						return;
+					}
+					const auto& a = j[ key ];
+					c.value = xdraw::color{
+						static_cast< std::uint8_t >( a[ 0 ].get< int >( ) ),
+						static_cast< std::uint8_t >( a[ 1 ].get< int >( ) ),
+						static_cast< std::uint8_t >( a[ 2 ].get< int >( ) ),
+						static_cast< std::uint8_t >( a[ 3 ].get< int >( ) ) };
+				};
+
+				get( "a",   th.custom_accent );
+				get( "a2",  th.custom_accent_2 );
+				get( "dk",  th.custom_dark );
+				get( "cd",  th.custom_card );
+				get( "el",  th.custom_elevated );
+				get( "tb",  th.custom_title_bar );
+				get( "tbg", th.custom_tab_bg );
+				get( "tx",  th.custom_text );
+				get( "txd", th.custom_text_dim );
+				get( "bd",  th.custom_border );
+				get( "gb",  th.custom_group_border );
+				get( "ln",  th.custom_line );
+				get( "eg",  th.custom_edge );
+				get( "ta",  th.custom_tab_active );
+				get( "cb",  th.custom_checkbox_on );
+				get( "sl",  th.custom_slider_fill );
+				get( "slb", th.custom_slider_bg );
+
+				th.logo_color_override.value = j.value( "lo", false );
+				get( "lc",  th.logo_color );
+
+				return true;
+			}
+			catch ( ... ) { return false; }
+		}
+
 		static inline void wide_to_utf8( const std::wstring& wide, char* out, int out_size )
 		{
 			WideCharToMultiByte( CP_UTF8, 0, wide.c_str( ), -1, out, out_size, nullptr, nullptr );
@@ -556,20 +687,127 @@ namespace rendering {
 				xui::end_child( );
 			}
 
-			// Right Column: Custom Accent
+			// Right Column: Theme Editor
 			xui::layout::set_cursor( right_x - this->m_x, body_y - this->m_y );
-			if ( xui::begin_child( "##cfg_custom_accent_panel", col_w, this->m_body_h, true ) )
+			if ( xui::begin_child( "##cfg_theme_editor_panel", col_w, this->m_body_h, true ) )
 			{
-				group_header( "Custom Accent" );
+				auto& theme = settings::g_cheat.m_theme;
+				const auto selected_idx = static_cast< int >( theme.selected.value );
 
-				static config::col s_custom_accent{ { 255, 95, 175, 255 } };
-				const auto old_col = s_custom_accent.value;
+				group_header( "Theme Editor" );
 
-				xui::color_picker( "custom accent", s_custom_accent );
-
-				if ( s_custom_accent.value.r != old_col.r || s_custom_accent.value.g != old_col.g || s_custom_accent.value.b != old_col.b || s_custom_accent.value.a != old_col.a )
+				if ( xui::checkbox( "custom ui colors##theme", theme.use_custom_tokens.value ) )
 				{
-					g_menu.apply_custom_accent( s_custom_accent.value );
+					g_menu.apply_theme_preset( selected_idx );
+				}
+
+				xui::text( "Overrides the selected palette per token.", tokens::col_text_dim );
+
+				if ( theme.use_custom_tokens.value )
+				{
+					group_header( "Panels" );
+					xui::color_picker( "accent##theme", theme.custom_accent.value );
+					xui::color_picker( "accent gradient##theme", theme.custom_accent_2.value );
+					xui::color_picker( "window background##theme", theme.custom_dark.value );
+					xui::color_picker( "card##theme", theme.custom_card.value );
+					xui::color_picker( "elevated##theme", theme.custom_elevated.value );
+					xui::color_picker( "title bar##theme", theme.custom_title_bar.value );
+					xui::color_picker( "tab background##theme", theme.custom_tab_bg.value );
+
+					group_header( "Text" );
+					xui::color_picker( "text##theme", theme.custom_text.value );
+					xui::color_picker( "dim text##theme", theme.custom_text_dim.value );
+
+					group_header( "Borders" );
+					xui::color_picker( "border##theme", theme.custom_border.value );
+					xui::color_picker( "group border##theme", theme.custom_group_border.value );
+					xui::color_picker( "separator##theme", theme.custom_line.value );
+					xui::color_picker( "edge##theme", theme.custom_edge.value );
+
+					group_header( "Controls" );
+					xui::color_picker( "active tab##theme", theme.custom_tab_active.value );
+					xui::color_picker( "checkbox##theme", theme.custom_checkbox_on.value );
+					xui::color_picker( "slider fill##theme", theme.custom_slider_fill.value );
+					xui::color_picker( "slider track##theme", theme.custom_slider_bg.value );
+				}
+
+				xui::layout::spacing( 16.0f );
+				group_header( "Logo Color" );
+
+				if ( xui::checkbox( "override logo color##theme", theme.logo_color_override.value ) )
+				{
+					g_menu.apply_theme_preset( selected_idx );
+				}
+
+				if ( theme.logo_color_override.value )
+				{
+					xui::color_picker( "logo color##theme", theme.logo_color.value );
+				}
+
+				// Re-apply whenever any token / toggle in this panel changed.
+				// Cheap to fingerprint, and it keeps the pickers live without
+				// re-deriving the theme every single frame.
+				const auto theme_signature = [ ]
+				{
+					std::uint32_t h = 2166136261u;
+					const auto mix = [ &h ]( const xdraw::color& c )
+					{
+						for ( const std::uint8_t b : { c.r, c.g, c.b, c.a } )
+						{
+							h = ( h ^ b ) * 16777619u;
+						}
+					};
+
+					const auto& t = settings::g_cheat.m_theme;
+					mix( t.custom_accent.value );
+					mix( t.custom_accent_2.value );
+					mix( t.custom_dark.value );
+					mix( t.custom_card.value );
+					mix( t.custom_elevated.value );
+					mix( t.custom_title_bar.value );
+					mix( t.custom_tab_bg.value );
+					mix( t.custom_text.value );
+					mix( t.custom_text_dim.value );
+					mix( t.custom_border.value );
+					mix( t.custom_group_border.value );
+					mix( t.custom_line.value );
+					mix( t.custom_edge.value );
+					mix( t.custom_tab_active.value );
+					mix( t.custom_checkbox_on.value );
+					mix( t.custom_slider_fill.value );
+					mix( t.custom_slider_bg.value );
+					mix( t.logo_color.value );
+					h = ( h ^ ( t.use_custom_tokens.value ? 1u : 0u ) ) * 16777619u;
+					h = ( h ^ ( t.logo_color_override.value ? 1u : 0u ) ) * 16777619u;
+					return h;
+				}( );
+
+				static std::uint32_t s_last_theme_signature{};
+				if ( theme_signature != s_last_theme_signature )
+				{
+					s_last_theme_signature = theme_signature;
+					g_menu.apply_theme_preset( selected_idx );
+				}
+
+				xui::layout::spacing( 16.0f );
+				group_header( "Share Theme" );
+
+				if ( xui::button( "Copy Theme Code", xui::layout::item_width( ), 26.0f ) )
+				{
+					const auto code = detail::theme_share_encode( );
+					if ( !code.empty( ) )
+					{
+						detail::copy_to_clipboard( code );
+					}
+				}
+
+				if ( xui::button( "Apply Theme From Clipboard", xui::layout::item_width( ), 26.0f ) )
+				{
+					if ( detail::theme_share_decode( detail::paste_from_clipboard( ) ) )
+					{
+						s_last_theme_signature = 0; // force re-apply next frame
+						g_menu.apply_theme_preset( static_cast< int >( settings::g_cheat.m_theme.selected.value ) );
+					}
 				}
 
 				xui::layout::spacing( 16.0f );

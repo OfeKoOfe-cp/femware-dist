@@ -26,6 +26,7 @@ namespace features::combat {
 		this->m_indicator_yaw = 0.0f;
 		this->m_steer_valid = false;
 		this->m_steer_offset = 0.0f;
+		this->m_last_yaw_target_pawn = 0;
 	}
 
 	void misc::antiaim::on_create_move( systems::input::usercmd* cmd )
@@ -666,6 +667,14 @@ namespace features::combat {
 			{
 				auto best_yaw = base_yaw;
 				auto best_threat_score = std::numeric_limits<float>::max( );
+				std::uintptr_t best_pawn{};
+
+				// Near-tie enemies each tick re-scored within a hair of one
+				// another used to flip the base yaw back and forth every tick,
+				// which reads as the body constantly spinning with players
+				// around. Bias toward whoever was picked last so only a
+				// genuinely better threat (by > this margin) steals the yaw.
+				constexpr float k_last_target_loyalty = 14.0f;
 
 				for ( const auto& p : players )
 				{
@@ -728,14 +737,27 @@ namespace features::combat {
 						threat_score -= 15.0f;
 					}
 
+					if ( pawn == this->m_last_yaw_target_pawn )
+					{
+						threat_score -= k_last_target_loyalty;
+					}
+
 					if ( threat_score < best_threat_score )
 					{
 						best_threat_score = threat_score;
 						best_yaw = angle_to_enemy.y - base_yaw_offset;
+						best_pawn = pawn;
 					}
 				}
 
-				return best_threat_score < std::numeric_limits<float>::max( ) ? std::optional<float>{ best_yaw } : std::nullopt;
+				if ( best_pawn == 0 )
+				{
+					this->m_last_yaw_target_pawn = 0;
+					return std::nullopt;
+				}
+
+				this->m_last_yaw_target_pawn = best_pawn;
+				return std::optional<float>{ best_yaw };
 			};
 
 		if ( const auto target_yaw = pick_target_yaw( ) )
@@ -995,390 +1017,6 @@ namespace features::combat {
 		}
 
 		return false;
-	}
-
-	namespace {
-
-		math::vector3 quickpeek_ground_snap( std::uintptr_t skip_pawn, const math::vector3& feet_pos )
-		{
-			const auto start = math::vector3{ feet_pos.x, feet_pos.y, feet_pos.z + 64.0f };
-			const auto end = math::vector3{ feet_pos.x, feet_pos.y, feet_pos.z - 8192.0f };
-			const auto tr = systems::g_tracing.trace( start, end, skip_pawn );
-
-			if ( tr.fraction <= 0.0f || tr.fraction >= 0.997f )
-			{
-				return feet_pos;
-			}
-
-			auto out = tr.position;
-			out.z += 1.0f;
-			return out;
-		}
-
-	} // namespace
-
-	void misc::duckpeek::on_create_move( systems::input::usercmd* cmd )
-	{
-		this->m_fake_stand_active = false;
-
-		if ( !cmd || !settings::g_combat.m_duckpeek.enabled.value )
-		{
-			this->m_was_active = false;
-			return;
-		}
-
-		const auto local = systems::g_local.get( );
-		if ( !local.is_alive || !local.pawn || systems::g_local.is_in_cinematic( ) || systems::g_local.is_in_time_freeze( ) )
-		{
-			this->m_was_active = false;
-			return;
-		}
-
-		this->m_was_active = true;
-
-		if ( g_rage.should_release_duck_for_shot( ) )
-		{
-			cmd->buttons.value &= ~cstypes::command_buttons::in_duck;
-			this->m_fake_stand_active = true;
-			return;
-		}
-
-		cmd->buttons.value |= cstypes::command_buttons::in_duck;
-
-		if ( g_rage.duckpeek_wants_reduck( ) )
-		{
-			g_rage.clear_duckpeek_reduck( );
-		}
-	}
-
-	void misc::duckpeek::on_override_view( std::uintptr_t view_setup )
-	{
-		(void)view_setup;
-
-		if ( !settings::g_combat.m_duckpeek.enabled.value )
-		{
-			this->m_was_active = false;
-			this->m_fake_stand_active = false;
-		}
-	}
-
-	void misc::fakeduck::on_create_move( systems::input::usercmd* cmd )
-	{
-		this->m_was_active = false;
-
-		if ( !cmd || !settings::g_combat.m_fakeduck.enabled.value )
-		{
-			this->m_ducking = false;
-			return;
-		}
-
-		const auto local = systems::g_local.get( );
-		if ( !local.is_alive || !local.pawn || systems::g_local.is_in_cinematic( ) || systems::g_local.is_in_time_freeze( ) )
-		{
-			this->m_ducking = false;
-			return;
-		}
-
-		const auto base = cmd->csgo_user_cmd.mutable_base( );
-		if ( !base )
-		{
-			return;
-		}
-
-		this->m_was_active = true;
-
-		// CT/hold: release duck while the ragebot wants to shoot so the shot
-		// comes from a standing hitbox, then re-hold on the next tick.
-		if ( g_rage.should_release_duck_for_shot( ) && settings::g_combat.m_fakeduck.hide_shots.value )
-		{
-			cmd->buttons.value &= ~cstypes::command_buttons::in_duck;
-			this->m_ducking = false;
-			return;
-		}
-
-		auto& buttons = cmd->buttons.value;
-		buttons |= cstypes::command_buttons::in_duck;
-
-		if ( ( systems::g_prediction.pre( ).flags & cstypes::entity_flags::on_ground ) == 0 )
-		{
-			this->m_ducking = false;
-			return;
-		}
-
-		const auto subtick_moves = base->mutable_subtick_moves( );
-
-		// Alternate a duck-down at the start of the tick and a duck-up shortly
-		// after, so the engine re-evaluates crouch each tick. This fakes a
-		// sustained short-crouch that desyncs the lower body from the view.
-		this->m_ducking = !this->m_ducking;
-
-		constexpr auto k_press_frac{ 0.0f };
-		constexpr auto k_release_frac{ 2.0f / 64.0f };
-
-		if ( this->m_ducking )
-		{
-			if ( const auto duck_down = systems::g_input.acquire_subtick_step( subtick_moves ) )
-			{
-				duck_down->set_button( cstypes::command_buttons::in_duck );
-				duck_down->set_pressed( true );
-				duck_down->set_when( k_press_frac );
-				duck_down->set_analog_forward_delta( 0.0f );
-				duck_down->set_analog_left_delta( 0.0f );
-			}
-		}
-		else
-		{
-			if ( const auto duck_up = systems::g_input.acquire_subtick_step( subtick_moves ) )
-			{
-				duck_up->set_button( cstypes::command_buttons::in_duck );
-				duck_up->set_pressed( false );
-				duck_up->set_when( k_release_frac );
-				duck_up->set_analog_forward_delta( 0.0f );
-				duck_up->set_analog_left_delta( 0.0f );
-			}
-		}
-	}
-
-	void misc::quickpeek::on_create_move( systems::input::usercmd* cmd )
-	{
-		if ( !settings::g_combat.m_quickpeek.enabled.value )
-		{
-			this->reset( );
-			return;
-		}
-
-		const auto local = systems::g_local.get( );
-		const auto& ctx = g_shared.ctx( );
-
-		if ( ctx.weapon_type < cstypes::weapon_type::pistol || ctx.weapon_type > cstypes::weapon_type::lmg )
-		{
-			this->reset( );
-			return;
-		}
-
-		const auto base = cmd->csgo_user_cmd.mutable_base( );
-		constexpr auto movement_cancel_mask = static_cast< std::uintptr_t >( cstypes::command_buttons::in_forward | cstypes::command_buttons::in_back | cstypes::command_buttons::in_moveleft | cstypes::command_buttons::in_moveright );
-		const auto curr_movement_bits = cmd->buttons.value & movement_cancel_mask;
-
-		const auto game_scene_node = memory::read<std::uintptr_t>( local.pawn + SCHEMA( "C_BaseEntity", "m_pGameSceneNode"_hash ) );
-		const auto origin = memory::read<math::vector3>( game_scene_node + SCHEMA( "CGameSceneNode", "m_vecAbsOrigin"_hash ) );
-
-		if ( this->m_saved_origin.length_sqr( ) < 0.001f )
-		{
-			this->m_saved_origin = quickpeek_ground_snap( local.pawn, origin );
-			this->m_should_retrack = false;
-			this->m_fired = false;
-			this->m_active = true;
-			this->create_particle( );
-			this->m_prev_movement_bits = curr_movement_bits;
-			return;
-		}
-
-		this->update_particle( );
-
-		const auto distance = ( origin - this->m_saved_origin ).length_2d( );
-
-		if ( this->m_should_retrack && ( curr_movement_bits & ~this->m_prev_movement_bits ) != 0 )
-		{
-			this->m_should_retrack = false;
-		}
-
-		if ( this->m_should_retrack && ( systems::g_prediction.pre( ).flags & cstypes::entity_flags::on_ground ) )
-		{
-			const auto velocity = memory::read<math::vector3>( local.pawn + SCHEMA( "C_BaseEntity", "m_vecAbsVelocity"_hash ) );
-			const auto speed = velocity.length_2d( );
-
-			if ( distance < 5.0f && speed < 15.0f )
-			{
-				this->m_should_retrack = false;
-				this->m_fired = false;
-			}
-			else if ( distance < speed * 0.1f && speed > 15.0f )
-			{
-				const auto vel_angle = math::helpers::vector_to_angle( velocity * -1.0f );
-				const auto yaw_diff = math::helpers::deg_to_rad( base->viewangles( )->y( ) - vel_angle.y );
-
-				base->set_forwardmove( std::cosf( yaw_diff ) );
-				base->set_leftmove( -std::sinf( yaw_diff ) );
-
-				auto buttons = cmd->buttons.value;
-				buttons &= ~static_cast< std::uintptr_t >( cstypes::command_buttons::in_forward | cstypes::command_buttons::in_back | cstypes::command_buttons::in_moveleft | cstypes::command_buttons::in_moveright );
-
-				if ( base->forwardmove( ) > 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_forward;
-				}
-				else if ( base->forwardmove( ) < 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_back;
-				}
-
-				if ( base->leftmove( ) > 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_moveleft;
-				}
-				else if ( base->leftmove( ) < 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_moveright;
-				}
-
-				cmd->buttons.value = buttons;
-			}
-			else
-			{
-				const auto diff = this->m_saved_origin - origin;
-				const auto angle_to_pos = math::helpers::vector_to_angle( diff );
-				const auto yaw_diff = math::helpers::deg_to_rad( base->viewangles( )->y( ) - angle_to_pos.y );
-
-				base->set_forwardmove( std::cosf( yaw_diff ) );
-				base->set_leftmove( -std::sinf( yaw_diff ) );
-
-				auto buttons = cmd->buttons.value;
-				buttons &= ~static_cast< std::uintptr_t >( cstypes::command_buttons::in_forward | cstypes::command_buttons::in_back | cstypes::command_buttons::in_moveleft | cstypes::command_buttons::in_moveright );
-
-				if ( base->forwardmove( ) > 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_forward;
-				}
-				else if ( base->forwardmove( ) < 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_back;
-				}
-
-				if ( base->leftmove( ) > 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_moveleft;
-				}
-				else if ( base->leftmove( ) < 0.0f )
-				{
-					buttons |= cstypes::command_buttons::in_moveright;
-				}
-
-				cmd->buttons.value = buttons;
-			}
-		}
-
-		if ( ( cmd->buttons.value & cstypes::command_buttons::in_attack ) && !g_rage.is_cocking_revolver( ) )
-		{
-			this->m_should_retrack = true;
-			this->m_fired = true;
-		}
-
-		this->m_prev_movement_bits = curr_movement_bits;
-	}
-
-	void misc::quickpeek::reset_if_needed( )
-	{
-		if ( !this->m_active )
-		{
-			return;
-		}
-
-		const auto local = systems::g_local.get( );
-		if ( !local.is_alive || !local.pawn )
-		{
-			this->reset( );
-			return;
-		}
-
-		if ( !settings::g_combat.m_quickpeek.enabled.value )
-		{
-			this->reset( );
-		}
-	}
-
-	void misc::quickpeek::create_particle( )
-	{
-		const auto particle_manager = memory::read<std::uintptr_t>( addresses::globals::particle_manager );
-		if ( !particle_manager )
-		{
-			return;
-		}
-
-		constexpr auto particle_path{ "particles/embedded/halo.vpcf" };
-
-		if ( !this->m_particle_loaded )
-		{
-			struct buffer_string
-			{
-				std::uint32_t m_unknown1{};
-				std::uint32_t m_unknown2{ 0xc00000c8 };
-
-				union
-				{
-					std::uintptr_t m_str_ptr;
-					std::uint8_t data[ 0xc8 ];
-				};
-
-				std::uintptr_t m_unknown3{ 0 };
-				std::uintptr_t m_unknown4{ 0 };
-			} buffer;
-
-			memory::call<void>(PATTERN (patterns::init_particle_path_buffer), &buffer, particle_path );
-			buffer.m_unknown4 = 'fcpv';
-			memory::call<void>(PATTERN (patterns::resource_system_precache), addresses::globals::resource_system, &buffer, "" );
-
-			this->m_particle_loaded = true;
-		}
-
-		auto effect_index{ invalid_effect_index };
-		memory::call<int*>(PATTERN (patterns::particle_create_effect), particle_manager, &effect_index, particle_path, 8, 0ll, 0ll, 0ll, 0 );
-
-		this->m_particle_effect = effect_index;
-
-		if ( effect_index == invalid_effect_index )
-		{
-			return;
-		}
-
-		memory::call<bool>(PATTERN (patterns::particle_set_control_point), particle_manager, effect_index, 0, &this->m_saved_origin, 0 );
-	}
-
-	void misc::quickpeek::update_particle( )
-	{
-		if ( this->m_particle_effect == invalid_effect_index )
-		{
-			return;
-		}
-
-		const auto particle_manager = memory::read<std::uintptr_t>( addresses::globals::particle_manager );
-		if ( !particle_manager )
-		{
-			return;
-		}
-
-		const auto& cfg = settings::g_combat.m_quickpeek;
-		const auto& col = this->m_should_retrack ? cfg.retrack_color : cfg.color;
-		const auto color = math::vector3{ static_cast< float >( col.value.r ), static_cast< float >( col.value.g ), static_cast< float >( col.value.b ) };
-
-		memory::call<bool>(PATTERN (patterns::particle_set_control_point), particle_manager, this->m_particle_effect, 1, &color, 0 );
-		memory::call<bool>(PATTERN (patterns::particle_set_control_point), particle_manager, this->m_particle_effect, 0, &this->m_saved_origin, 0 );
-	}
-
-	void misc::quickpeek::release_particle( )
-	{
-		if ( this->m_particle_effect == invalid_effect_index )
-		{
-			return;
-		}
-
-		const auto particle_manager = memory::read<std::uintptr_t>( addresses::globals::particle_manager );
-		if ( particle_manager )
-		{
-			memory::call<void>(PATTERN (patterns::particle_destroy_effect), particle_manager, this->m_particle_effect, true, true );
-		}
-
-		this->m_particle_effect = invalid_effect_index;
-	}
-
-	void misc::quickpeek::reset( )
-	{
-		this->release_particle( );
-		this->m_saved_origin = {};
-		this->m_should_retrack = false;
-		this->m_fired = false;
-		this->m_active = false;
-		this->m_prev_movement_bits = 0;
 	}
 
 	void misc::autostop::on_create_move( systems::input::usercmd* cmd )

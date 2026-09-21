@@ -217,23 +217,34 @@ namespace features::esp::other {
 				const auto distance = ( c4_origin - pawn_origin ).length( );
 
 				// Bomb blast uses a per-site baked field since the Season 5
-				// rework (2026-07-08); the old radial gaussian is gone. Closest
-				// HUD proxy without the baked data is a straight-line falloff
-				// from the blast ceiling at the plant down to zero at the map's
-				// reach. The old gaussian (sigma = radius/3) collapsed to ~1%
-				// damage at just a third of the radius, so the overlay showed
-				// the bomb as nearly harmless mid-range -- massively wrong.
-				// Anchors: 255 is the blast's hard cap at point-blank, and 3495
-				// units is the reference default reach. Armor does NOT affect
-				// bomb damage (kevlar/helmet do nothing against the blast), so
-				// the old armor-absorption block is removed too.
+				// rework (2026-07-08); the old radial gaussian is gone and the
+				// exact field is not client-readable. Closest HUD proxy:
+				// straight-line falloff from the blast ceiling at the plant down
+				// to zero at the map's reach, attenuated when a wall blocks the
+				// direct line (the baked field is wall-aware -- it dissipates
+				// around corners instead of passing through geometry).
+				// Anchors: 255 is the blast's hard cap at point-blank, 3495 units
+				// is the reference reach, and the blast always chips at least 1 HP
+				// at any distance. Armor does NOT affect bomb damage.
 				constexpr auto default_damage{ 255.0f };
 				constexpr auto default_radius{ 3495.0f };
 
 				const auto falloff = std::clamp( distance / default_radius, 0.0f, 1.0f );
 				auto damage = default_damage * ( 1.0f - falloff );
 
-				return std::floor( damage );
+				// LOS checks. Trace chest-height to chest-height; skip the C4
+				// itself so its own collision never counts as an occluder.
+				const auto blast_origin = c4_origin + math::vector3{ 0.0f, 0.0f, 8.0f };
+				const auto pawn_torso = pawn_origin + math::vector3{ 0.0f, 0.0f, 40.0f };
+
+				if ( !systems::g_tracing.is_visible( blast_origin, pawn_torso, view_pawn, planted_c4 ) )
+				{
+					damage *= 0.5f;
+				}
+
+				damage = std::clamp( std::floor( damage ), 1.0f, default_damage );
+
+				return damage;
 			}( );
 
 		const auto [screen_w, screen_h] = xdraw::viewport_size( );
