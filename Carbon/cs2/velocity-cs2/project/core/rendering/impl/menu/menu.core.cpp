@@ -2062,6 +2062,18 @@ namespace rendering {
 		settings::g_misc.m_media_player.accent_color = theme_accent;
 		settings::g_misc.m_media_player.lyrics_highlight = theme_accent;
 		settings::g_misc.m_spectrum.color = theme_accent;
+
+		// Grenade timers draw with saved colors the same way the media player
+		// does, so a theme switch must retint them too: the smoke timer body and
+		// the landing / fire-perimeter arcs are surface accents. The smoke
+		// timer's "warning (<3s)" hue stays red on purpose (semantic alert, not
+		// decoration) and the grenade-type icon stays white for legibility.
+		auto& proj_overlay = settings::g_esp.m_projectile.m_overlay;
+		proj_overlay.m_smoke_timer.color = theme_accent;
+		for ( auto& g : proj_overlay.m_indicator.groups )
+		{
+			g.arc_color = theme_accent;
+		}
 	}
 
 	void menu::apply_custom_accent( xdraw::color col )

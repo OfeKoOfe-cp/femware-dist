@@ -18,6 +18,8 @@ namespace features::combat {
 		this->m_modified_angles = {};
 		this->m_last_real_angles = {};
 		this->m_last_real_valid = false;
+		this->m_last_real_pitch = 0.0f;
+		this->m_last_real_pitch_valid = false;
 		this->m_lby_elapsed_ticks = 0;
 		this->m_lby_break_ticks = 0;
 		this->m_lby_break_now = false;
@@ -58,6 +60,7 @@ namespace features::combat {
 				if ( view_ok )
 				{
 					math::helpers::normalize_angles( real );
+					this->track_pitch( real.x );
 					this->m_last_real_angles = real;
 					this->m_last_real_valid = true;
 					systems::g_input.set_view_angles( real );
@@ -174,6 +177,13 @@ namespace features::combat {
 			}
 		}
 		math::helpers::normalize_angles( real_angles );
+
+		// The transmitted fake pitch (down/up = ±89) can leak back into the
+		// engine input view through prediction reseeding the pawn eye angles,
+		// so the "real" read occasionally sits ON the fake boundary. Sanitize
+		// it BEFORE it becomes the camera/mouse/pawn reference: a leaked pitch
+		// here is what makes the camera look straight up or down while AA runs.
+		this->track_pitch( real_angles.x );
 
 		// Authoritative real reference for the render thread (override_view):
 		// the last known real view, refreshed every active tick. This is what
@@ -351,6 +361,18 @@ namespace features::combat {
 			}
 		}
 
+		// Pitch has no "sits on the sent pose" signal as distinct as yaw's
+		// 180-degree flip styles, so reject the leak at the boundary instead:
+		// a fixed pitch mode (down/up) only ever transmits ±89, so whatever
+		// lands here on that exact boundary is the fake (the camera-facing
+		// fallback m_last_real_angles can also carry it if the create_move
+		// read was already contaminated before tracking started). Restore the
+		// last pitch that demonstrably was not the fake.
+		if ( this->m_last_real_pitch_valid && this->is_fake_pitch( target_angles.x ) )
+		{
+			target_angles.x = this->m_last_real_pitch;
+		}
+
 		memory::write<math::vector3>( view_setup + 0x4b8, target_angles );
 
 		// Keep the pawn's eye angles true for the whole frame too, not just
@@ -485,6 +507,42 @@ namespace features::combat {
 			return -89.0f;
 		default:
 			return view_pitch;
+		}
+	}
+
+	bool misc::antiaim::is_fake_pitch( float pitch ) const
+	{
+		switch ( settings::g_combat.m_antiaim.pitch )
+		{
+		case settings::combat::antiaim::pitch_mode::down:
+			return std::fabsf( pitch - 89.0f ) <= 5.0f;
+		case settings::combat::antiaim::pitch_mode::up:
+			return std::fabsf( pitch + 89.0f ) <= 5.0f;
+		default:
+			// pitch mode "none" forwards the real view, so there is no sent
+			// boundary for the leak to sit on -- nothing to guard.
+			return false;
+		}
+	}
+
+	void misc::antiaim::track_pitch( float& pitch )
+	{
+		if ( this->is_fake_pitch( pitch ) )
+		{
+			// Sitting on the transmitted boundary: this read is the leak, not
+			// the user (looking at exactly straight up/down is ephemeral and
+			// only collides with the sent pose by accident). Restore the last
+			// pitch that demonstrably was not the fake so the leak never poisons
+			// the pawn eye write, the input anchor, or the camera reference.
+			if ( this->m_last_real_pitch_valid )
+			{
+				pitch = this->m_last_real_pitch;
+			}
+		}
+		else
+		{
+			this->m_last_real_pitch = pitch;
+			this->m_last_real_pitch_valid = true;
 		}
 	}
 
