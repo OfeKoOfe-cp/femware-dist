@@ -2233,8 +2233,6 @@ struct duckpeek
 		xui::setting bhop{ true, {}, "bhop", "movement" };
 		config::val<int> bhop_hitchance{ 100, "movement", "bhop hitchance" };
 		config::val<int> bhop_max_consecutive{ 0, "movement", "bhop max consecutive" };
-		xui::setting bhop_avoid_perfection{ false, {}, "avoid perfect bhops", "movement" };
-		config::val<int> bhop_perfection_delay_ms{ 12, "movement", "perfect bhop delay" };
 		xui::setting airstrafe{ true, {}, "airstrafe", "movement" };
 		xui::setting airstrafe_fully_directional{ true, {}, "fully directional", "movement - airstrafe" };
 		config::val<float> airstrafe_turn_rate_limit{ 0.0f, "movement - airstrafe", "turn rate limit" };
@@ -2244,9 +2242,9 @@ struct duckpeek
 		xui::setting edgejump{ false, { 'E', xui::bind_mode::hold_on}, "edgejump", "movement" };
 		xui::setting edgestop{ false, { 'N', xui::bind_mode::hold_on}, "edgestop", "movement" };
 		xui::setting edgebug{ false, {}, "edgebug", "movement" };
-		/// 0..4 — matches jmp table order around \c loc_C80A3A in dump (mode dword selects case before the active path).
+		/// 0..4 â€” matches jmp table order around \c loc_C80A3A in dump (mode dword selects case before the active path).
 		config::val<int> edgebug_mode{ 1, "movement", "edgebug mode" };
-		/// Analog of \c xmmword_E22CA4+0xC — extra subtick duck cycles (each cycle = press+release pair).
+		/// Analog of \c xmmword_E22CA4+0xC â€” extra subtick duck cycles (each cycle = press+release pair).
 		config::val<int> edgebug_passes{ 1, "movement", "edgebug passes" };
 		/// Adds jump up/down subticks like jumpbug after duck sequence (not in every dump path; optional).
 		xui::setting edgebug_include_jump_steps{ false, {}, "edgebug jump steps", "movement" };
@@ -2347,6 +2345,7 @@ struct duckpeek
 	struct theme
 	{
 		enum class palette : std::uint8_t { femware, catppuccin, coffee, tokyo_night };
+		enum class catppuccin_flavor : std::uint8_t { latte, frappe, macchiato, mocha };
 		enum class role : std::uint8_t { text, accent, background, subtext };
 
 		struct swatch
@@ -2355,13 +2354,14 @@ struct duckpeek
 		};
 
 		config::enm<palette> selected{ palette::femware, "theme", "name palette" };
+		config::enm<catppuccin_flavor> flavor{ catppuccin_flavor::mocha, "theme", "catppuccin flavor" };
 		xui::setting use_custom{ false, {}, "use custom name colors", "theme" };
 		config::col text_color{ { 228, 233, 238, 255 }, "theme", "name text color" };
 		config::col accent_color{ { 0, 192, 255, 255 }, "theme", "name accent color" };
 		config::col background_color{ { 12, 15, 19, 110 }, "theme", "name background color" };
 		config::col subtext_color{ { 156, 165, 178, 210 }, "theme", "name subtext color" };
 
-		[[nodiscard]] static constexpr swatch palette_for( palette p, role r )
+		[[nodiscard]] static constexpr swatch palette_for( palette p, role r, catppuccin_flavor f = catppuccin_flavor::mocha )
 		{
 			switch ( p )
 			{
@@ -2369,17 +2369,47 @@ struct duckpeek
 				switch ( r )
 				{
 				case role::text: return { 0.894f, 0.905f, 0.921f, 1.000f };
-				case role::accent: return { 0.000f, 0.753f, 0.992f, 1.000f };
-				case role::background: return { 0.047f, 0.051f, 0.054f, 0.670f };
-				default: return { 0.612f, 0.651f, 0.710f, 0.843f };
+				case role::accent: return { 0.839f, 0.102f, 0.620f, 1.000f };
+				case role::background: return { 0.133f, 0.133f, 0.161f, 0.933f };
+				default: return { 0.588f, 0.588f, 0.651f, 1.000f };
 				}
 			case palette::catppuccin:
-				switch ( r )
+				if ( f == catppuccin_flavor::latte )
 				{
-				case role::text: return { 0.804f, 0.831f, 0.969f, 1.000f };
-				case role::accent: return { 0.537f, 0.843f, 0.976f, 1.000f };
-				case role::background: return { 0.118f, 0.125f, 0.169f, 0.800f };
-				default: return { 0.827f, 0.843f, 0.949f, 0.902f };
+					switch ( r )
+					{
+					case role::text: return { 0.298f, 0.310f, 0.412f, 1.000f };
+					case role::accent: return { 0.016f, 0.647f, 0.898f, 1.000f };
+					case role::background: return { 0.937f, 0.945f, 0.961f, 0.850f };
+					default: return { 0.549f, 0.561f, 0.631f, 1.000f };
+					}
+				}
+				else if ( f == catppuccin_flavor::frappe )
+				{
+					switch ( r )
+					{
+					case role::text: return { 0.776f, 0.816f, 0.961f, 1.000f };
+					case role::accent: return { 0.600f, 0.820f, 0.859f, 1.000f };
+					case role::background: return { 0.188f, 0.204f, 0.275f, 0.820f };
+					default: return { 0.647f, 0.678f, 0.808f, 1.000f };
+					}
+				}
+				else if ( f == catppuccin_flavor::macchiato )
+				{
+					switch ( r )
+					{
+					case role::text: return { 0.792f, 0.827f, 0.961f, 1.000f };
+					case role::accent: return { 0.569f, 0.843f, 0.890f, 1.000f };
+					case role::background: return { 0.141f, 0.153f, 0.227f, 0.820f };
+					default: return { 0.647f, 0.678f, 0.796f, 1.000f };
+					}
+				}
+				switch ( r ) // mocha
+				{
+				case role::text: return { 0.804f, 0.839f, 0.957f, 1.000f };
+				case role::accent: return { 0.537f, 0.863f, 0.922f, 1.000f };
+				case role::background: return { 0.118f, 0.118f, 0.180f, 0.820f };
+				default: return { 0.651f, 0.678f, 0.784f, 1.000f };
 				}
 			case palette::coffee:
 				switch ( r )
@@ -2413,19 +2443,18 @@ struct duckpeek
 				default: return { norm( this->subtext_color.value.r ), norm( this->subtext_color.value.g ), norm( this->subtext_color.value.b ), norm( this->subtext_color.value.a ) };
 				}
 			}
-			return palette_for( this->selected.value, r );
+			return palette_for( this->selected.value, r, this->flavor.value );
 		}
 	};
 
 	struct cheat
 	{
-		xui::setting unsafe_mode{ false, {}, "unsafe mode", "cheat" };
-
 		struct unsafe_features_t
 		{
-			xui::setting nospread_resolver{ false, {}, "nospread resolver", "cheat" };
-			xui::setting movement_pred_override{ false, {}, "movement prediction override", "cheat" };
+			xui::setting nospread_resolver{ false, {}, "no spread resolver", "unsafe features" };
 		} m_unsafe_features{};
+
+		xui::setting unsafe_mode{ false, {}, "unsafe mode", "cheat" };
 
 		theme m_theme{};
 	};

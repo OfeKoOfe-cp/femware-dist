@@ -208,27 +208,7 @@ namespace features::movement {
 
 		s_consecutive_hops++;
 
-		// Perfect-bhop avoidance. CS2 buffers +jump, so a frame-perfect
-		// landing-buffers on the exact 1/64 tick the moment the feet kiss the
-		// ground is the classic scripted tell. When the avoidance slider is on
-		// we pull the injected jump a random sub-tick amount EARLY (clamped to
-		// half a tick so a long slider can't fire a mid-air +jump and break the
-		// strafe) so the hop no longer lands on the perfect edge, yet still
-		// buffers before ground contact.
-		//
-		// Safety lock: this is a SAFE-mode feature. With Unsafe mode engaged the
-		// user has opted into the raw behavior, so perfects are allowed and the
-		// slider is ignored -- the safe parameter is locked out.
 		auto jump_when = *landing;
-		const auto unsafe_on = settings::g_cheat.unsafe_mode.value;
-		const auto avoid_perfection = settings::g_movement.bhop_avoid_perfection.value && !unsafe_on;
-		if ( avoid_perfection )
-		{
-			const auto tick_ms = cstypes::tick_interval * 1000.0f;
-			const auto delay_ms = random::floating( 0.0f, static_cast< float >( settings::g_movement.bhop_perfection_delay_ms.value ) );
-			const auto delay_frac = std::clamp( delay_ms / tick_ms, 0.0f, 0.5f );
-			jump_when = std::max( 1.0f / 64.0f, *landing - delay_frac );
-		}
 
 		apply_landing_jump( base, jump_when );
 	}

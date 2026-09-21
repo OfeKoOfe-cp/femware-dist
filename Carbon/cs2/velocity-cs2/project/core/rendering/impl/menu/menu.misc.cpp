@@ -99,8 +99,6 @@ namespace rendering {
 				{
 					xui::slider_int( "hitchance##bhop", mov.bhop_hitchance, 10, 100, "%d%%" );
 					xui::slider_int( "max consecutive##bhop", mov.bhop_max_consecutive, 0, 15, "%d hops" );
-					xui::checkbox( "avoid perfect bhops", mov.bhop_avoid_perfection );
-					xui::slider_int( "perfection delay", mov.bhop_perfection_delay_ms, 1, 150, "%d ms" );
 					xui::end_popup( );
 				}
 

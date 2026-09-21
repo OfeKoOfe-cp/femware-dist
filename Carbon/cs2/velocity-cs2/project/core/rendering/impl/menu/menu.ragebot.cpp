@@ -49,19 +49,6 @@ namespace rendering {
 
 		if ( xui::begin_child( "##ragebot_aimbot", col_w, card1_h, true ) )
 		{
-			group_header( "Unsafe Mode" );
-			xui::checkbox( "unsafe mode", settings::g_cheat.unsafe_mode );
-			if ( settings::g_cheat.unsafe_mode.value )
-			{
-				xui::checkbox( "nospread resolver", settings::g_cheat.m_unsafe_features.nospread_resolver );
-				xui::checkbox( "movement prediction override", settings::g_cheat.m_unsafe_features.movement_pred_override );
-			}
-			else
-			{
-				xui::layout::separator( );
-				group_header( "Enable unsafe mode to configure unsafe features" );
-			}
-
 			group_header( "Aimbot & Targeting" );
 			xui::checkbox( "enabled", rb.enabled );
 			xui::checkbox( "silent", wg.silent );
