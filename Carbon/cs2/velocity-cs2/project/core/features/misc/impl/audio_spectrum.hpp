@@ -159,8 +159,13 @@ namespace features::misc::spectrum
 			client->Release( ); dev->Release( ); enumer->Release( ); CoUninitialize( ); return;
 		}
 
+		// Shared-mode loopback must request a ZERO buffer duration (periodicity
+		// is also always 0 in shared mode). A nonzero request is documented as
+		// invalid for shared clients; on some driver/endpoint combos Initialize
+		// fails entirely, the capture thread bounces forever, and the widget
+		// sits on dead bars instead of reacting to audio.
 		if ( FAILED( client->Initialize( AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
-			10000000, 0, wfx, nullptr ) ) )
+			0, 0, wfx, nullptr ) ) )
 		{
 			CoTaskMemFree( wfx ); client->Release( ); dev->Release( ); enumer->Release( ); CoUninitialize( ); return;
 		}

@@ -99,6 +99,7 @@ namespace rendering {
 				{
 					xui::slider_int( "hitchance##bhop", mov.bhop_hitchance, 10, 100, "%d%%" );
 					xui::slider_int( "max consecutive##bhop", mov.bhop_max_consecutive, 0, 15, "%d hops" );
+					xui::slider_float( "hop delay##bhop", mov.bhop_hop_delay, 0.0f, 15.0f, "%.1f ms" );
 					xui::end_popup( );
 				}
 

@@ -12,18 +12,6 @@ namespace features::combat {
 
 	void rage::on_create_move( systems::input::usercmd* cmd )
 	{
-		// Unsafe-mode lock: while unsafe mode is off the rage section is force-
-		// disabled. Flush any in-flight fire state on the frame the lock is
-		// (re)engaged so a partial rage shot can never stay pending, then no-op
-		// the entire aim/fire path (no aim, no shots emitted through rage).
-		if ( !settings::g_cheat.unsafe_mode.value )
-		{
-			this->m_firing_this_tick = false;
-			this->m_should_stop = false;
-			this->m_revolver_cock_ticks = 0;
-			return;
-		}
-
 		auto& ctx = g_shared.ctx( );
 		const auto local = systems::g_local.get( );
 		this->update_penetration_crosshair( local );

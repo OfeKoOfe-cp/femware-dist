@@ -21,6 +21,9 @@ namespace rendering {
 		auto confirm_timer{ 0.0f };
 		std::string status_msg{};
 		auto status_timer{ 0.0f };
+		std::string theme_name_buf{};
+		std::vector<std::wstring> theme_list{};
+		auto theme_needs_refresh{ true };
 
 		static inline bool copy_to_clipboard( const std::string& text )
 		{
@@ -76,11 +79,11 @@ namespace rendering {
 			return result;
 		}
 
-		// Theme share: a theme-only payload (palette + flavor + the entire
-		// token override set + logo slot) packed through the same LZ4 + base64
-		// path the config share codes use, so a look can be handed to someone
-		// else without dragging a whole config along.
-		static inline std::string theme_share_encode( )
+		// Theme sharing: a theme-only payload (palette + flavor + the entire
+		// token override set + logo slot). Serialized as plain JSON so theme
+		// files can be browsed/edited by hand in the themes folder, and shared
+		// with friends as a tiny .json drop-in.
+		static inline nlohmann::json theme_to_json( )
 		{
 			const auto& th = settings::g_cheat.m_theme;
 
@@ -116,95 +119,62 @@ namespace rendering {
 			j[ "lo" ] = th.logo_color_override.value;
 			put( "lc",  th.logo_color.value );
 
-			const auto packed = config::compress::deflate( j.dump( ) );
-			if ( packed.empty( ) )
-			{
-				return {};
-			}
-
-			return config::base64::encode( packed.data( ), packed.size( ) );
+			return j;
 		}
 
-		static inline bool theme_share_decode( std::string code )
+		static inline bool theme_apply_json( const nlohmann::json& j )
 		{
-			if ( code.empty( ) )
+			if ( !j.is_object( ) || j.value( "m", std::string{} ) != "fw-theme-1" )
 			{
 				return false;
 			}
 
-			std::string cleaned;
-			cleaned.reserve( code.size( ) );
-			for ( auto c : code )
+			auto& th = settings::g_cheat.m_theme;
+			th.selected.value = static_cast< settings::theme::palette >( j.value( "p", 0 ) );
+			th.flavor.value   = static_cast< settings::theme::catppuccin_flavor >( j.value( "f", 0 ) );
+			th.use_custom_tokens.value = j.value( "ct", true );
+
+			const auto get = [ &j ]( const char* key, config::col& c )
 			{
-				if ( c != ' ' && c != '\n' && c != '\r' && c != '\t' )
+				if ( !j.contains( key ) || !j[ key ].is_array( ) || j[ key ].size( ) < 4 )
 				{
-					cleaned.push_back( c );
+					return;
 				}
-			}
+				const auto& a = j[ key ];
+				c.value = xdraw::color{
+					static_cast< std::uint8_t >( a[ 0 ].get< int >( ) ),
+					static_cast< std::uint8_t >( a[ 1 ].get< int >( ) ),
+					static_cast< std::uint8_t >( a[ 2 ].get< int >( ) ),
+					static_cast< std::uint8_t >( a[ 3 ].get< int >( ) ) };
+			};
 
-			const auto decoded = config::base64::decode( cleaned );
-			if ( !decoded )
-			{
-				return false;
-			}
+			get( "a",   th.custom_accent );
+			get( "a2",  th.custom_accent_2 );
+			get( "dk",  th.custom_dark );
+			get( "cd",  th.custom_card );
+			get( "el",  th.custom_elevated );
+			get( "tb",  th.custom_title_bar );
+			get( "tbg", th.custom_tab_bg );
+			get( "tx",  th.custom_text );
+			get( "txd", th.custom_text_dim );
+			get( "bd",  th.custom_border );
+			get( "gb",  th.custom_group_border );
+			get( "ln",  th.custom_line );
+			get( "eg",  th.custom_edge );
+			get( "ta",  th.custom_tab_active );
+			get( "cb",  th.custom_checkbox_on );
+			get( "sl",  th.custom_slider_fill );
+			get( "slb", th.custom_slider_bg );
 
-			const auto json_str = config::compress::inflate( decoded->data( ), decoded->size( ) );
-			if ( !json_str )
-			{
-				return false;
-			}
+			th.logo_color_override.value = j.value( "lo", false );
+			get( "lc",  th.logo_color );
 
-			try
-			{
-				const auto j = nlohmann::json::parse( *json_str );
-				if ( j.value( "m", std::string{} ) != "fw-theme-1" )
-				{
-					return false;
-				}
+			return true;
+		}
 
-				auto& th = settings::g_cheat.m_theme;
-				th.selected.value = static_cast< settings::theme::palette >( j.value( "p", 0 ) );
-				th.flavor.value   = static_cast< settings::theme::catppuccin_flavor >( j.value( "f", 0 ) );
-				th.use_custom_tokens.value = j.value( "ct", true );
-
-				const auto get = [ &j ]( const char* key, config::col& c )
-				{
-					if ( !j.contains( key ) || !j[ key ].is_array( ) || j[ key ].size( ) < 4 )
-					{
-						return;
-					}
-					const auto& a = j[ key ];
-					c.value = xdraw::color{
-						static_cast< std::uint8_t >( a[ 0 ].get< int >( ) ),
-						static_cast< std::uint8_t >( a[ 1 ].get< int >( ) ),
-						static_cast< std::uint8_t >( a[ 2 ].get< int >( ) ),
-						static_cast< std::uint8_t >( a[ 3 ].get< int >( ) ) };
-				};
-
-				get( "a",   th.custom_accent );
-				get( "a2",  th.custom_accent_2 );
-				get( "dk",  th.custom_dark );
-				get( "cd",  th.custom_card );
-				get( "el",  th.custom_elevated );
-				get( "tb",  th.custom_title_bar );
-				get( "tbg", th.custom_tab_bg );
-				get( "tx",  th.custom_text );
-				get( "txd", th.custom_text_dim );
-				get( "bd",  th.custom_border );
-				get( "gb",  th.custom_group_border );
-				get( "ln",  th.custom_line );
-				get( "eg",  th.custom_edge );
-				get( "ta",  th.custom_tab_active );
-				get( "cb",  th.custom_checkbox_on );
-				get( "sl",  th.custom_slider_fill );
-				get( "slb", th.custom_slider_bg );
-
-				th.logo_color_override.value = j.value( "lo", false );
-				get( "lc",  th.logo_color );
-
-				return true;
-			}
-			catch ( ... ) { return false; }
+		static inline std::filesystem::path themes_dir( )
+		{
+			return config::files::root_path( ) / L"themes";
 		}
 
 		static inline void wide_to_utf8( const std::wstring& wide, char* out, int out_size )
@@ -212,11 +182,138 @@ namespace rendering {
 			WideCharToMultiByte( CP_UTF8, 0, wide.c_str( ), -1, out, out_size, nullptr, nullptr );
 		}
 
+		static inline std::string wide_to_utf8_str( const std::wstring& wide )
+		{
+			std::string out( wide.size( ) * 4 + 1, '\0' );
+			const auto written = WideCharToMultiByte( CP_UTF8, 0, wide.c_str( ), -1, out.data( ), static_cast< int >( out.size( ) ), nullptr, nullptr );
+			if ( written > 0 )
+			{
+				out.resize( written - 1 );
+			}
+			else
+			{
+				out.clear( );
+			}
+			return out;
+		}
+
 		static inline std::wstring utf8_to_wide( const std::string& utf8 )
 		{
 			wchar_t buf[ 128 ]{};
 			MultiByteToWideChar( CP_UTF8, 0, utf8.c_str( ), -1, buf, 128 );
 			return buf;
+		}
+
+		static inline std::wstring sanitize_theme_name( const std::string& name )
+		{
+			std::string safe;
+			safe.reserve( name.size( ) );
+
+			for ( const char c : name )
+			{
+				if ( c == '\\' || c == '/' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|' )
+				{
+					continue;
+				}
+				safe.push_back( c );
+			}
+
+			if ( safe.empty( ) )
+			{
+				safe = "unnamed";
+			}
+
+			return utf8_to_wide( safe );
+		}
+
+		static inline bool save_theme( const std::wstring& name )
+		{
+			if ( name.empty( ) )
+			{
+				return false;
+			}
+
+			const auto dir = themes_dir( );
+			std::error_code ec;
+			std::filesystem::create_directories( dir, ec );
+
+			const auto path = dir / ( sanitize_theme_name( wide_to_utf8_str( name ) ) + L".json" );
+			std::ofstream out( path, std::ios::binary | std::ios::trunc );
+			if ( !out )
+			{
+				return false;
+			}
+
+			const auto text = theme_to_json( ).dump( -1 );
+			out.write( text.data( ), static_cast< std::streamsize >( text.size( ) ) );
+			out.flush( );
+			out.close( );
+			return !out.fail( );
+		}
+
+		static inline bool load_theme( const std::wstring& name )
+		{
+			if ( name.empty( ) )
+			{
+				return false;
+			}
+
+			const auto path = themes_dir( ) / ( sanitize_theme_name( wide_to_utf8_str( name ) ) + L".json" );
+			std::ifstream in( path, std::ios::binary );
+			if ( !in )
+			{
+				return false;
+			}
+
+			std::string buf( ( std::istreambuf_iterator<char>( in ) ), std::istreambuf_iterator<char>( ) );
+			if ( buf.empty( ) )
+			{
+				return false;
+			}
+
+			try
+			{
+				const auto j = nlohmann::json::parse( buf, nullptr, false );
+				if ( j.is_discarded( ) )
+				{
+					return false;
+				}
+				return theme_apply_json( j );
+			}
+			catch ( ... ) { return false; }
+		}
+
+		static inline std::vector<std::wstring> list_themes( )
+		{
+			std::vector<std::wstring> names;
+			std::error_code ec;
+
+			const auto dir = themes_dir( );
+			if ( !std::filesystem::exists( dir, ec ) )
+			{
+				return names;
+			}
+
+			constexpr wchar_t k_theme_ext[ ]{ L".json" };
+			for ( const auto& entry : std::filesystem::directory_iterator( dir, ec ) )
+			{
+				if ( !entry.is_regular_file( ec ) )
+				{
+					continue;
+				}
+
+				auto file_name = entry.path( ).filename( ).wstring( );
+				if ( file_name.size( ) < 6 || file_name.compare( file_name.size( ) - 5, 5, k_theme_ext ) != 0 )
+				{
+					continue;
+				}
+
+				file_name.resize( file_name.size( ) - 5 );
+				names.push_back( std::move( file_name ) );
+			}
+
+			std::sort( names.begin( ), names.end( ) );
+			return names;
 		}
 
 		static inline bool config_matches_search( const std::wstring& wname )
@@ -618,15 +715,6 @@ namespace rendering {
 
 				xui::checkbox( "unsafe mode##cfg", settings::g_cheat.unsafe_mode );
 
-				if ( settings::g_cheat.unsafe_mode )
-				{
-					xui::text( "Unsafe mode is on - rage settings are fully unlocked.", tokens::col_text_dim );
-				}
-				else
-				{
-					xui::text( "Rage is locked while unsafe mode is off.", tokens::col_text_dim );
-				}
-
 				xui::layout::spacing( 16.0f );
 				group_header( "Theme" );
 
@@ -700,8 +788,6 @@ namespace rendering {
 				{
 					g_menu.apply_theme_preset( selected_idx );
 				}
-
-				xui::text( "Overrides the selected palette per token.", tokens::col_text_dim );
 
 				if ( theme.use_custom_tokens.value )
 				{
@@ -790,29 +876,76 @@ namespace rendering {
 				}
 
 				xui::layout::spacing( 16.0f );
-				group_header( "Share Theme" );
+				group_header( "Saved Themes" );
 
-				if ( xui::button( "Copy Theme Code", xui::layout::item_width( ), 26.0f ) )
+				xui::text_input( "##theme_save_name", detail::theme_name_buf, 48, "theme name..." );
+
+				if ( xui::button( "Save Current Theme", xui::layout::item_width( ), 26.0f ) )
 				{
-					const auto code = detail::theme_share_encode( );
-					if ( !code.empty( ) )
+					const auto wname = detail::utf8_to_wide( detail::theme_name_buf );
+					if ( detail::save_theme( wname ) )
 					{
-						detail::copy_to_clipboard( code );
+						detail::theme_needs_refresh = true;
 					}
 				}
 
-				if ( xui::button( "Apply Theme From Clipboard", xui::layout::item_width( ), 26.0f ) )
+				if ( xui::button( "Open Themes Folder", xui::layout::item_width( ), 26.0f ) )
 				{
-					if ( detail::theme_share_decode( detail::paste_from_clipboard( ) ) )
+					const auto dir = detail::themes_dir( );
+					std::error_code ec;
+					std::filesystem::create_directories( dir, ec );
+					ShellExecuteW( nullptr, L"open", dir.c_str( ), nullptr, nullptr, SW_SHOWNORMAL );
+				}
+
+				if ( detail::theme_needs_refresh )
+				{
+					detail::theme_list = detail::list_themes( );
+					detail::theme_needs_refresh = false;
+				}
+
+				const auto [themes_av_w, themes_av_h] = xui::layout::avail( );
+				if ( themes_av_h > 40.0f && xui::begin_child( "##saved_themes_list", themes_av_w, std::min( themes_av_h, 140.0f ), true ) )
+				{
+					if ( detail::theme_list.empty( ) )
 					{
-						s_last_theme_signature = 0; // force re-apply next frame
-						g_menu.apply_theme_preset( static_cast< int >( settings::g_cheat.m_theme.selected.value ) );
+						const auto row = xui::layout::item( themes_av_w, 24.0f );
+						dl.text( row.x + 10.0f, row.y + 5.0f, "no saved themes yet", tokens::col_text_dim );
 					}
+					else
+					{
+						constexpr auto row_h{ 26.0f };
+						for ( auto i = 0; i < static_cast< int >( detail::theme_list.size( ) ); ++i )
+						{
+							const auto& wname = detail::theme_list[ i ];
+							char narrow[ 128 ]{};
+							detail::wide_to_utf8( wname, narrow, sizeof( narrow ) );
+
+							const auto row = xui::layout::item( themes_av_w, row_h );
+							const bool hov = input.in_rect( row );
+
+							if ( hov )
+							{
+								dl.rect_filled( row.x, row.y, row.w, row.h, tokens::col_elevated, xdraw::corner_radius{ tokens::round_md } );
+							}
+
+							dl.text( row.x + 10.0f, row.y + 6.0f, narrow, hov ? tokens::col_text : tokens::col_text_dim );
+
+							if ( hov && input.mouse_clicked && !xui::ctx( ).overlay_blocking( ) )
+							{
+								if ( detail::load_theme( wname ) )
+								{
+									s_last_theme_signature = 0; // force re-apply next frame
+									g_menu.apply_theme_preset( static_cast< int >( settings::g_cheat.m_theme.selected.value ) );
+								}
+							}
+						}
+					}
+
+					xui::end_child( );
 				}
 
 				xui::layout::spacing( 16.0f );
 				group_header( "Accent Preview" );
-				xui::text( "Live theme accent preview:", tokens::col_text_dim );
 				xui::button( "Active Accent Button", xui::layout::item_width( ), 26.0f );
 
 				xui::end_child( );

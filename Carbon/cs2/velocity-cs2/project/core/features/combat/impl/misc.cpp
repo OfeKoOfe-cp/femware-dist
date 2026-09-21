@@ -239,7 +239,23 @@ namespace features::combat {
 
 		this->m_modified_angles = this->m_old_angles;
 		this->m_modified_angles.x = this->get_pitch( this->m_old_angles.x );
-		this->m_modified_angles.y = this->get_yaw( this->m_old_angles, local );
+
+		if ( this->m_movement_input )
+		{
+			// Movement lock (real yaw while moving): any fake yaw offset rotates
+			// the movement basis, so W re-encodes into W+A/W+D combos -- that is
+			// what shreds walking and bhop speed. While the player is steering
+			// or already travelling, transmit the TRUE yaw (no desync, no fake
+			// rotation, visually a non-desynced stance) so the movement basis
+			// stays native; full fake resumes the instant they stand. Pitch is
+			// untouched -- it never affects ground movement.
+			this->m_modified_angles.y = this->m_old_angles.y;
+			this->m_indicator_yaw = this->m_old_angles.y;
+		}
+		else
+		{
+			this->m_modified_angles.y = this->get_yaw( this->m_old_angles, local );
+		}
 
 		math::helpers::normalize_angles( this->m_modified_angles );
 
@@ -383,7 +399,19 @@ namespace features::combat {
 		// the model/animation layer still sees a fake<->real flicker.
 		if ( const auto eye_offset = SCHEMA( "C_CSPlayerPawn", "m_angEyeAngles"_hash ) )
 		{
-			memory::write<math::vector3>( local.pawn + eye_offset, target_angles );
+			// The CAMERA stays on the real pitch (written to view_setup above),
+			// but the pawn's eye angles drive the BODY's pose in 3rd person /
+			// teammates' views. Give the model the transmitted fake pitch (±89)
+			// so AA visibly snaps the whole character up/down, not just the
+			// server-side command. Yaw stays real -- it is what seedes the next
+			// command's movement basis, so faking it here would re-introduce the
+			// W->W+A / W+D re-encode that breaks walking/bhopping.
+			auto model_angles = target_angles;
+			if ( this->m_antiaim_active && this->is_fake_pitch( this->m_modified_angles.x ) )
+			{
+				model_angles.x = this->m_modified_angles.x;
+			}
+			memory::write<math::vector3>( local.pawn + eye_offset, model_angles );
 		}
 	}
 
@@ -498,7 +526,7 @@ namespace features::combat {
 		}
 	}
 
-	float misc::antiaim::get_pitch( float view_pitch )
+	float misc::antiaim::get_pitch( float view_pitch ) const
 	{
 		switch ( settings::g_combat.m_antiaim.pitch )
 		{

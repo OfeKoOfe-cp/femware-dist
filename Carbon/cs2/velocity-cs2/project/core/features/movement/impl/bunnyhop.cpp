@@ -176,6 +176,15 @@ namespace features::movement {
 
 		// Grounded: jump immediately. This is the case the landing predictor
 		// cannot cover (edge run-offs, landing late in a tick, fast falls).
+		const auto delay_frac = std::clamp( settings::g_movement.bhop_hop_delay.value * ( 64.0f / 1000.0f ), 0.0f, 60.0f / 64.0f );
+		const auto jittered_when = [ delay_frac ]( float when )
+		{
+			// Delay the press a hair into the tick so hops aren't frame-perfect
+			// ("0 ms perfect bhop" reads as a macro to overseers). A token
+			// fraction keeps the air-strafe window while looking human.
+			return std::clamp( when + delay_frac, 0.0f, 63.0f / 64.0f );
+		};
+
 		if ( on_ground )
 		{
 			if ( !hop_allowed( ) )
@@ -184,7 +193,7 @@ namespace features::movement {
 			}
 
 			s_consecutive_hops++;
-			apply_landing_jump( base, 0.0f );
+			apply_landing_jump( base, jittered_when( 0.0f ) );
 			return;
 		}
 
@@ -208,9 +217,7 @@ namespace features::movement {
 
 		s_consecutive_hops++;
 
-		auto jump_when = *landing;
-
-		apply_landing_jump( base, jump_when );
+		apply_landing_jump( base, jittered_when( *landing ) );
 	}
 
 } // namespace features::movement

@@ -725,17 +725,10 @@ namespace rendering {
 		// spill outside the widget at small sizes.
 		draw_list.push_clip( s_viz_x, s_viz_y, s_viz_w, s_viz_h );
 
-		const float header_h = ( s_viz_h >= 30.0f ) ? 18.0f : 0.0f;
-		if ( header_h > 0.0f )
-		{
-			const auto [tw, th] = xdraw::measure_text( "AUDIO VISUALIZER" );
-			const float hy = s_viz_y + 5.0f;
-			draw_list.text( s_viz_x + 8.0f, hy, "AUDIO VISUALIZER", tokens::col_accent.alpha( 200 ) );
-			draw_list.rect_filled( s_viz_x + 8.0f + tw + 6.0f, hy + th * 0.62f, std::max( 0.0f, s_viz_w - 16.0f - tw - 6.0f ), 1.0f, tokens::col_accent.alpha( 60 ) );
-		}
-
-		features::misc::spectrum::draw( draw_list, s_viz_x + 8.0f, s_viz_y + header_h + 4.0f,
-			std::max( 0.0f, s_viz_w - 16.0f ), std::max( 0.0f, s_viz_h - header_h - 8.0f ),
+		// Bars-only card: no captions. The full height goes to the spectrum so
+		// even short cards read clearly.
+		features::misc::spectrum::draw( draw_list, s_viz_x + 8.0f, s_viz_y + 4.0f,
+			std::max( 0.0f, s_viz_w - 16.0f ), std::max( 0.0f, s_viz_h - 8.0f ),
 			cfg.color.value, cfg.sensitivity.value );
 
 		// "No audio signal" diagnostic: capture thread alive but loopback is

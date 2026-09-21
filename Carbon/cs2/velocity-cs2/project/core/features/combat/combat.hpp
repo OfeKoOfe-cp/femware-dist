@@ -288,7 +288,7 @@ namespace features::combat {
 			[[nodiscard]] const math::vector3& get_modified_angles( ) const { return this->m_modified_angles; }
 
 		private:
-			[[nodiscard]] float get_pitch( float view_pitch );
+			[[nodiscard]] float get_pitch( float view_pitch ) const;
 			[[nodiscard]] float get_yaw( const math::vector3& view_angles, const systems::local::snapshot& local );
 			void correct_movement( systems::input::usercmd* cmd );
 			[[nodiscard]] bool is_near_ladder( std::uintptr_t local_pawn ) const;
