@@ -627,15 +627,13 @@ namespace rendering {
 
 				group_header( "Audio Visualizer (HUD)" );
 				xui::checkbox( "audio visualizer", m.m_spectrum.enabled );
-				if ( xui::begin_popup( "##viz_popup", 220.0f ) )
+				if ( m.m_spectrum.enabled.value )
 				{
 					xui::slider_float( "width##viz", m.m_spectrum.width, 80.0f, 800.0f, "%.0f" );
 					xui::slider_float( "height##viz", m.m_spectrum.height, 16.0f, 160.0f, "%.0f" );
 					xui::slider_float( "sensitivity##viz", m.m_spectrum.sensitivity, 0.2f, 6.0f, "%.2f" );
 					xui::color_picker( "color##viz", m.m_spectrum.color );
-					xui::end_popup( );
 				}
-				xui::text( "drag the widget to reposition while the menu is open", tokens::col_text_dim );
 
 				xui::end_child( );
 			}

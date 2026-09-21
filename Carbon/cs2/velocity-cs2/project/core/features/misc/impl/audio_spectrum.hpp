@@ -384,11 +384,11 @@ namespace features::misc::spectrum
 		for ( int i = 0; i < k_bands; ++i )
 		{
 			const float v = std::clamp( band[ i ], 0.0f, 1.0f );
-			const float bh = std::max( 1.5f, v * h );
+			const float bh = std::max( 2.5f, v * h );
 			const float bx = x + static_cast< float >( i ) * ( bw + gap );
 
 			dl.rect_filled( bx, y + h - bh, bw, bh,
-				accent.alpha( static_cast< std::uint8_t >( 90.0f + 165.0f * v ) ),
+				accent.alpha( static_cast< std::uint8_t >( 105.0f + 150.0f * v ) ),
 				xdraw::corner_radius{ bw * 0.5f } );
 		}
 	}

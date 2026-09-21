@@ -42,40 +42,13 @@ namespace rendering {
 
 		const auto gap      = tokens::gap;
 
-		// Unsafe-mode lock: while unsafe mode is off the whole rage section is
-		// read-only. A prominent toggle lives at the top of the section and the
-		// normal cards are replaced by an inline notice instead of the controls.
-		const auto unsafe_active = settings::g_cheat.unsafe_mode.value;
-		const auto banner_h      = 46.0f;
-		const auto content_h     = std::max( 0.0f, this->m_body_h - banner_h - gap );
-
-		// ── Unsafe Mode Gate (top of section, always visible) ──
-		xui::layout::set_cursor( body_x - wx, body_y - wy );
-		if ( xui::begin_child( "##ragebot_unsafe", body_w, banner_h, true ) )
-		{
-			group_header( "Unsafe Mode" );
-			xui::checkbox( "unsafe mode##rage", settings::g_cheat.unsafe_mode );
-			xui::end_child( );
-		}
-
-		if ( !unsafe_active )
-		{
-			xui::layout::set_cursor( body_x - wx, body_y - wy + banner_h + gap );
-			if ( xui::begin_child( "##ragebot_locked", body_w, content_h, true ) )
-			{
-				group_header( "Rage Locked" );
-				xui::text( "Rage is locked while unsafe mode is off.", tokens::col_text_dim );
-				xui::text( "Enable it here or in Settings \xE2\x86\x92 Unsafe Features to use rage.", tokens::col_text_dim );
-				xui::end_child( );
-			}
-			return;
-		}
+		const auto content_h = this->m_body_h;
 
 		const auto card1_h  = std::floor( ( content_h - gap ) * 0.58f );
 		const auto card2_h  = content_h - card1_h - gap;
 
 		// ── Left Column: Aimbot & Targeting + Hitscan & Multipoint ──
-		xui::layout::set_cursor( body_x - wx, body_y - wy + banner_h + gap );
+		xui::layout::set_cursor( body_x - wx, body_y - wy );
 
 		if ( xui::begin_child( "##ragebot_aimbot", col_w, card1_h, true ) )
 		{
@@ -136,7 +109,7 @@ namespace rendering {
 		}
 
 		// ── Right Column: Anti-Aim Angles & Exploits/Movement ──
-		xui::layout::set_cursor( right_x - wx, body_y - wy + banner_h + gap );
+		xui::layout::set_cursor( right_x - wx, body_y - wy );
 
 		if ( xui::begin_child( "##ragebot_antiaim", col_w, card1_h, true ) )
 		{
