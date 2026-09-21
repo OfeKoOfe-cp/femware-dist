@@ -626,7 +626,7 @@ namespace rendering {
 				xui::layout::separator( );
 
 				group_header( "Audio Visualizer (HUD)" );
-				xui::checkbox( "audio visualizer hud", m.m_spectrum.enabled );
+				xui::checkbox( "audio visualizer", m.m_spectrum.enabled );
 				if ( xui::begin_popup( "##viz_popup", 220.0f ) )
 				{
 					xui::slider_float( "width##viz", m.m_spectrum.width, 80.0f, 800.0f, "%.0f" );

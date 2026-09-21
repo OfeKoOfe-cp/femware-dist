@@ -2145,16 +2145,11 @@ struct duckpeek
 			config::val<float> lyrics_size{ 1.0f, "misc", "lyrics size" };
 			config::col lyrics_color{ { 210, 210, 224, 215 }, "misc", "lyrics color" };
 			config::col lyrics_highlight{ { 214, 26, 158, 255 }, "misc", "lyrics highlight" };
-
-			// Audio visualizer (WASAPI loopback spectrum).
-			xui::setting visualizer{ true, {}, "audio visualizer", "misc" };
-			config::val<float> viz_height{ 26.0f, "misc", "visualizer height" };
-			config::val<float> viz_sensitivity{ 1.0f, "misc", "visualizer sensitivity" };
 		} m_media_player{};
 
 		struct spectrum_cfg
 		{
-			xui::setting enabled{ true, {}, "audio visualizer hud", "misc" };
+			xui::setting enabled{ true, {}, "audio visualizer", "misc" };
 			config::val<float> pos_x{ 40.0f, "misc", "visualizer pos x" };
 			config::val<float> pos_y{ 120.0f, "misc", "visualizer pos y" };
 			config::val<float> width{ 240.0f, "misc", "visualizer width" };
@@ -2449,11 +2444,6 @@ struct duckpeek
 
 	struct cheat
 	{
-		struct unsafe_features_t
-		{
-			xui::setting nospread_resolver{ false, {}, "no spread resolver", "unsafe features" };
-		} m_unsafe_features{};
-
 		xui::setting unsafe_mode{ false, {}, "unsafe mode", "cheat" };
 
 		theme m_theme{};

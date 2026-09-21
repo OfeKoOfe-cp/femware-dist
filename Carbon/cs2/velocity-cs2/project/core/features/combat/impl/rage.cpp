@@ -11,6 +11,18 @@ namespace features::combat {
 
 	void rage::on_create_move( systems::input::usercmd* cmd )
 	{
+		// Unsafe-mode lock: while unsafe mode is off the rage section is force-
+		// disabled. Flush any in-flight fire state on the frame the lock is
+		// (re)engaged so a partial rage shot can never stay pending, then no-op
+		// the entire aim/fire path (no aim, no shots emitted through rage).
+		if ( !settings::g_cheat.unsafe_mode.value )
+		{
+			this->m_firing_this_tick = false;
+			this->m_should_stop = false;
+			this->m_revolver_cock_ticks = 0;
+			return;
+		}
+
 		auto& ctx = g_shared.ctx( );
 		const auto local = systems::g_local.get( );
 		this->update_penetration_crosshair( local );
@@ -638,9 +650,7 @@ namespace features::combat {
 			return hits_out;
 		};
 
-		if ( config.no_spread.value
-				&& settings::g_cheat.unsafe_mode.value
-				&& settings::g_cheat.m_unsafe_features.nospread_resolver.value )
+		if ( config.no_spread.value )
 		{
 			shared_ctx.inaccuracy = g_shared.get_inaccuracy( false );
 			auto all_hits = scan_from_eye_candidates( {}, shared_ctx.inaccuracy );
@@ -1434,10 +1444,7 @@ namespace features::combat {
 					needed_hc = std::fmaxf( base_needed_hc - reduction, 0.25f );
 				}
 
-				const auto& bone = group.record->bones[ h.bone_index ];
-				const auto hc = config.no_spread.value
-					? 1.0f
-					: g_shared.calculate_hitchance( h.source_eye.position, h.aim_angle, h.hitbox, bone, eval_inaccuracy, aim_ctx.spread );
+				const auto hc = this->evaluate_hitchance( h, aim_ctx, eval_inaccuracy );
 				const auto hp = static_cast< float >( h.health );
 				const auto can_kill = h.damage >= hp;
 				const auto passes_hitchance = config.no_spread.value || hc >= needed_hc;

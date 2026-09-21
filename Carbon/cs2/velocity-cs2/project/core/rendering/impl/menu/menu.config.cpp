@@ -489,12 +489,11 @@ namespace rendering {
 
 				if ( settings::g_cheat.unsafe_mode )
 				{
-					xui::checkbox( "no-spread resolver##cfg", settings::g_cheat.m_unsafe_features.nospread_resolver );
-					xui::text( "Fully resolves no-spread by zeroing inaccuracy during aim.", tokens::col_text_dim );
+					xui::text( "Unsafe mode is on - rage settings are fully unlocked.", tokens::col_text_dim );
 				}
 				else
 				{
-					xui::text( "Enable unsafe mode to unlock advanced resolver options.", tokens::col_text_dim );
+					xui::text( "Rage is locked while unsafe mode is off.", tokens::col_text_dim );
 				}
 
 				xui::layout::spacing( 16.0f );

@@ -2054,6 +2054,14 @@ namespace rendering {
 		// Text — palette text / subtext.
 		tokens::col_text         = { tr, tg, tb, 245 };
 		tokens::col_text_dim     = { sr, sg, sb, 255 };
+
+		// HUD widgets that keep saved colors must follow the theme accent too,
+		// otherwise switching presets leaves the media player card, its lyrics
+		// highlight and the audio visualizer stuck on a stale hue.
+		const xdraw::color theme_accent{ ar, ag, ab, 255 };
+		settings::g_misc.m_media_player.accent_color = theme_accent;
+		settings::g_misc.m_media_player.lyrics_highlight = theme_accent;
+		settings::g_misc.m_spectrum.color = theme_accent;
 	}
 
 	void menu::apply_custom_accent( xdraw::color col )

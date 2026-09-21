@@ -6,6 +6,7 @@
 #include <core/settings.hpp>
 #include <core/features/features.hpp>
 #include <core/features/misc/impl/lyrics.hpp>
+#include <core/features/misc/impl/audio_spectrum.hpp>
 #include <thread>
 #include <mutex>
 
@@ -35,6 +36,7 @@ namespace rendering {
 
 		this->keybinds( dl );
 		this->media_player( dl );
+		this->audio_visualizer_widget( dl );
 		this->fw_logo_widget( dl );
 	}
 
@@ -1417,6 +1419,127 @@ namespace rendering {
 
 		const auto mode = static_cast<fw_logo_mode>( std::clamp( cfg.mode.value, 0, 3 ) );
 		draw_fw_logo( draw_list, s_fw_x + cur_w * 0.5f, s_fw_y + cur_h * 0.5f, cur_w, cur_h, mode, 1.0f );
+	}
+
+	void widgets::audio_visualizer_widget( xdraw::draw_list& draw_list )
+	{
+		const auto& cfg = settings::g_misc.m_spectrum;
+		if ( !cfg.enabled.value )
+		{
+			return;
+		}
+
+		const auto [sw, sh] = xdraw::viewport_size( );
+		const bool menu_open = rendering::g_menu.is_open( );
+
+		static float s_viz_x = -1.0f;
+		static float s_viz_y = -1.0f;
+		static float s_viz_w = 240.0f;
+		static float s_viz_h = 48.0f;
+
+		static bool s_initialized = false;
+		if ( !s_initialized )
+		{
+			s_viz_x = ( cfg.pos_x.value >= 0.0f ) ? cfg.pos_x.value : 40.0f;
+			s_viz_y = ( cfg.pos_y.value >= 0.0f ) ? cfg.pos_y.value : 120.0f;
+			s_initialized = true;
+		}
+
+		if ( std::abs( s_viz_w - cfg.width.value ) > 1.0f ) s_viz_w = std::clamp( cfg.width.value, 80.0f, 800.0f );
+		if ( std::abs( s_viz_h - cfg.height.value ) > 1.0f ) s_viz_h = std::clamp( cfg.height.value, 16.0f, 160.0f );
+
+		static bool s_dragging = false;
+		static float s_drag_off_x = 0.0f;
+		static float s_drag_off_y = 0.0f;
+
+		if ( menu_open )
+		{
+			auto& inp = xui::ctx( ).input;
+			const xui::rect viz_rect{ s_viz_x, s_viz_y, s_viz_w, s_viz_h };
+
+			if ( inp.mouse_clicked && !xui::ctx( ).overlay_blocking( ) && inp.in_rect( viz_rect ) )
+			{
+				s_dragging = true;
+				s_drag_off_x = inp.mouse_x - s_viz_x;
+				s_drag_off_y = inp.mouse_y - s_viz_y;
+			}
+
+			if ( !inp.mouse_down )
+			{
+				s_dragging = false;
+			}
+
+			if ( s_dragging )
+			{
+				s_viz_x = std::clamp( inp.mouse_x - s_drag_off_x, 0.0f, static_cast< float >( sw ) - s_viz_w );
+				s_viz_y = std::clamp( inp.mouse_y - s_drag_off_y, 0.0f, static_cast< float >( sh ) - s_viz_h );
+				const_cast<config::val<float>&>( cfg.pos_x ).value = s_viz_x;
+				const_cast<config::val<float>&>( cfg.pos_y ).value = s_viz_y;
+			}
+
+			const bool hovered = inp.in_rect( viz_rect );
+			const auto border_col = s_dragging ? tokens::col_accent : ( hovered ? tokens::col_accent.alpha( 120 ) : tokens::col_border.alpha( 60 ) );
+			draw_list.rect( s_viz_x - 1.0f, s_viz_y - 1.0f, s_viz_w + 2.0f, s_viz_h + 2.0f, border_col, 1.0f );
+		}
+		else
+		{
+			s_dragging = false;
+		}
+
+		s_viz_x = std::clamp( s_viz_x, 0.0f, static_cast< float >( sw ) - s_viz_w );
+		s_viz_y = std::clamp( s_viz_y, 0.0f, static_cast< float >( sh ) - s_viz_h );
+
+		// Card glass.
+		draw_list.rect_filled( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_dark.alpha( 150 ), xdraw::corner_radius{ 8.0f } );
+		draw_list.rect( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_border.alpha( 90 ), xdraw::corner_radius{ 8.0f }, 1.0f );
+
+		// Clip bars AND diagnostics to the card so the hint text can never
+		// spill outside the widget at small sizes.
+		draw_list.push_clip( s_viz_x, s_viz_y, s_viz_w, s_viz_h );
+
+		features::misc::spectrum::draw( draw_list, s_viz_x + 8.0f, s_viz_y + 8.0f, s_viz_w - 16.0f, s_viz_h - 16.0f,
+			cfg.color.value, cfg.sensitivity.value );
+
+		// "No audio signal" diagnostic: capture thread alive but loopback is
+		// silent (wrong default device, exclusive-mode endpoint, muted source).
+		const auto now_ms = GetTickCount64( );
+		const auto last = features::misc::spectrum::last_packet_ms( ).load( );
+		const auto last_audio = features::misc::spectrum::last_audio_ms( ).load( );
+
+		const char* msg = ( last == 0 ) ? "connecting to audio device..."
+			: ( now_ms - last_audio > 2500 ) ? "no audio signal"
+			: nullptr;
+
+		if ( msg )
+		{
+			const float inner_w = std::max( 0.0f, s_viz_w - 16.0f );
+			const float inner_h = std::max( 0.0f, s_viz_h - 16.0f );
+
+			const auto [dot_w, dot_h] = xdraw::measure_text( "..." );
+			if ( inner_w >= dot_w + 8.0f && inner_h >= dot_h )
+			{
+				const std::string_view full = msg;
+				std::string_view text = full;
+				auto [tw, th] = xdraw::measure_text( text );
+				while ( text.size( ) > 1 && tw > inner_w - dot_w )
+				{
+					text.remove_suffix( 1 );
+					tw = xdraw::measure_text( text ).first;
+				}
+
+				const bool truncated = text.size( ) < full.size( );
+				const float txt_w = tw + ( truncated ? dot_w : 0.0f );
+				const float base_x = s_viz_x + ( s_viz_w - txt_w ) * 0.5f;
+
+				draw_list.text( base_x, s_viz_y + ( s_viz_h - th ) * 0.5f, text, tokens::col_text_dim.alpha( 170 ) );
+				if ( truncated )
+				{
+					draw_list.text( base_x + tw + 1.0f, s_viz_y + ( s_viz_h - dot_h ) * 0.5f, "...", tokens::col_text_dim.alpha( 170 ) );
+				}
+			}
+		}
+
+		draw_list.pop_clip( );
 	}
 
 } // namespace rendering

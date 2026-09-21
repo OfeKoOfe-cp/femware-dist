@@ -351,6 +351,7 @@ namespace rendering {
 		void watermark( xdraw::draw_list& draw_list );
 		void keybinds( xdraw::draw_list& draw_list );
 		void media_player( xdraw::draw_list& draw_list );
+		void audio_visualizer_widget( xdraw::draw_list& draw_list );
 		void fw_logo_widget( xdraw::draw_list& draw_list );
 	};
 
