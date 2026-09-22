@@ -114,6 +114,8 @@ namespace rendering {
 			entry cat_overlay{};
 			entry dock_main{};
 			entry dock_skins{};
+			entry dock_models{};
+			entry model_mannequin{};
 			entry dock_lua{};
 			entry dock_console{};
 			entry dock_docs{};
@@ -211,6 +213,7 @@ namespace rendering {
 		master_mode m_master_mode{ master_mode::main };
 		bool m_show_main{ true };
 		bool m_show_skins{ false };
+		bool m_show_models{ false };
 		bool m_show_lua{ false };
 		bool m_show_lua_console{ false };
 		bool m_show_docs{ false };
@@ -223,6 +226,14 @@ namespace rendering {
 		float m_skins_y{ 40.0f };
 		float m_skins_w{ 1160.0f };
 		float m_skins_h{ 720.0f };
+
+		// Custom Models Studio State
+		float m_models_x{ 320.0f };
+		float m_models_y{ 60.0f };
+		float m_models_w{ 980.0f };
+		float m_models_h{ 620.0f };
+		int m_models_selected{ -1 };
+		std::string m_models_search{};
 
 		// Lua Studio State
 		float m_lua_x{ 620.0f };
@@ -297,12 +308,15 @@ namespace rendering {
 		float m_players_last_refresh{ 0.0f };
 		std::string m_players_filter{};
 		int m_players_team_filter{ 0 };
+		int m_players_selected{ -1 };
+		float m_players_selected_refresh{ 0.0f };
 
 		void draw_top_master_bar( float sw, float sh );
 		void draw_lua_studio( float sw, float sh );
 		void draw_lua_console( float sw, float sh );
 		void draw_documentation( float sw, float sh );
 		void draw_players_inspector( float sw, float sh );
+		void draw_models_studio( float sw, float sh );
 
 		void init_lua_studio( );
 		void refresh_lua_scripts( );

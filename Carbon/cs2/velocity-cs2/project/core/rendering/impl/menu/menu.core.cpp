@@ -40,6 +40,8 @@ namespace rendering {
 		constexpr float k_dock_icon_scale{ 16.0f / 24.0f };
 		this->m_textures.dock_main.resource = xdraw::load_svg( svgs::dock_main, k_dock_icon_scale, &this->m_textures.dock_main.width, &this->m_textures.dock_main.height );
 		this->m_textures.dock_skins.resource = xdraw::load_svg( svgs::tab_skins, k_dock_icon_scale, &this->m_textures.dock_skins.width, &this->m_textures.dock_skins.height );
+		this->m_textures.dock_models.resource = xdraw::load_svg( svgs::dock_models, k_dock_icon_scale, &this->m_textures.dock_models.width, &this->m_textures.dock_models.height );
+		this->m_textures.model_mannequin.resource = xdraw::load_svg( svgs::model_mannequin, 6.0f, &this->m_textures.model_mannequin.width, &this->m_textures.model_mannequin.height );
 		this->m_textures.dock_lua.resource = xdraw::load_svg( svgs::dock_lua, k_dock_icon_scale, &this->m_textures.dock_lua.width, &this->m_textures.dock_lua.height );
 		this->m_textures.dock_console.resource = xdraw::load_svg( svgs::dock_console, k_dock_icon_scale, &this->m_textures.dock_console.width, &this->m_textures.dock_console.height );
 		this->m_textures.dock_docs.resource = xdraw::load_svg( svgs::dock_docs, k_dock_icon_scale, &this->m_textures.dock_docs.width, &this->m_textures.dock_docs.height );
@@ -82,16 +84,16 @@ namespace rendering {
 
 		this->m_textures.fw_logo_static.resource = xdraw::load_texture(
 			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_static ), sizeof( resources::images::fw_logo_static ) ),
-			&this->m_textures.fw_logo_static.width, &this->m_textures.fw_logo_static.height );
+			&this->m_textures.fw_logo_static.width, &this->m_textures.fw_logo_static.height, true );
 
 		this->m_textures.fw_logo_glow = xdraw::load_gif(
-			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_glow ), sizeof( resources::images::fw_logo_glow ) ) );
+			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_glow ), sizeof( resources::images::fw_logo_glow ) ), true );
 
 		this->m_textures.fw_logo_spin = xdraw::load_gif(
-			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_spin ), sizeof( resources::images::fw_logo_spin ) ) );
+			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_spin ), sizeof( resources::images::fw_logo_spin ) ), true );
 
 		this->m_textures.fw_logo_spin_glow = xdraw::load_gif(
-			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_spin_glow ), sizeof( resources::images::fw_logo_spin_glow ) ) );
+			std::span<const std::byte>( reinterpret_cast<const std::byte*>( resources::images::fw_logo_spin_glow ), sizeof( resources::images::fw_logo_spin_glow ) ), true );
 
 		this->apply_theme_preset( 0 );
 		this->m_intro_base_graphics_ready = true;

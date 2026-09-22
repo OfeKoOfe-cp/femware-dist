@@ -242,15 +242,14 @@ namespace features::combat {
 
 		if ( this->m_movement_input )
 		{
-			// Movement lock (real yaw while moving): any fake yaw offset rotates
-			// the movement basis, so W re-encodes into W+A/W+D combos -- that is
-			// what shreds walking and bhop speed. While the player is steering
-			// or already travelling, transmit the TRUE yaw (no desync, no fake
-			// rotation, visually a non-desynced stance) so the movement basis
-			// stays native; full fake resumes the instant they stand. Pitch is
-			// untouched -- it never affects ground movement.
-			this->m_modified_angles.y = this->m_old_angles.y;
-			this->m_indicator_yaw = this->m_old_angles.y;
+			// Movement fake (clean backwards): a PURE 180deg offset is cardinal,
+			// so rotate_user_movement flips W->S directly -- no W->W+A / W+D
+			// diagonal re-encode, walking and bhop speed stay native while the
+			// body still visibly faces away. Per-tick jitter/flip styles are
+			// what rotate the movement basis off-cardinal, so those resume the
+			// instant the player stands; moving carries only the clean flip.
+			this->m_modified_angles.y = math::helpers::normalize_yaw( this->m_old_angles.y - 180.0f );
+			this->m_indicator_yaw = this->m_modified_angles.y;
 		}
 		else
 		{

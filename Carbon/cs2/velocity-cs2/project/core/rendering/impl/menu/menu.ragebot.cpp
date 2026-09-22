@@ -42,13 +42,32 @@ namespace rendering {
 
 		const auto gap      = tokens::gap;
 
-		const auto content_h = this->m_body_h;
+		// Unsafe-mode lock: while unsafe mode is off the whole rage section
+		// stays hidden behind a single gate toggle -- no config cards are
+		// drawn at all, so nothing leaks visually.
+		const auto unsafe_active = settings::g_cheat.unsafe_mode.value;
+		const auto banner_h      = 46.0f;
+		const auto content_h     = this->m_body_h;
 
-		const auto card1_h  = std::floor( ( content_h - gap ) * 0.58f );
-		const auto card2_h  = content_h - card1_h - gap;
+		xui::layout::set_cursor( body_x - wx, body_y - wy );
+		if ( xui::begin_child( "##ragebot_unsafe", body_w, banner_h, true ) )
+		{
+			group_header( "Unsafe Mode" );
+			xui::checkbox( "unsafe mode##rage", settings::g_cheat.unsafe_mode );
+			xui::end_child( );
+		}
+
+		if ( !unsafe_active )
+ 		{
+ 			return;
+ 		}
+
+		const auto cards_top = body_y + banner_h + gap;
+		const auto card1_h   = std::floor( ( content_h - banner_h - gap - gap ) * 0.58f );
+		const auto card2_h   = content_h - banner_h - gap - gap - card1_h;
 
 		// ── Left Column: Aimbot & Targeting + Hitscan & Multipoint ──
-		xui::layout::set_cursor( body_x - wx, body_y - wy );
+		xui::layout::set_cursor( body_x - wx, cards_top - wy );
 
 		if ( xui::begin_child( "##ragebot_aimbot", col_w, card1_h, true ) )
 		{
@@ -109,7 +128,7 @@ namespace rendering {
 		}
 
 		// ── Right Column: Anti-Aim Angles & Exploits/Movement ──
-		xui::layout::set_cursor( right_x - wx, body_y - wy );
+		xui::layout::set_cursor( right_x - wx, cards_top - wy );
 
 		if ( xui::begin_child( "##ragebot_antiaim", col_w, card1_h, true ) )
 		{

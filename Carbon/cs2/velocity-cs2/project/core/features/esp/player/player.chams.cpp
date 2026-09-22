@@ -491,6 +491,18 @@ namespace features::esp::player {
 				continue;
 			}
 
+			if ( features::players::get( memory::read<std::uint64_t>( p.ptr + SCHEMA( "CBasePlayerController", "m_steamID"_hash ) ) ).no_visuals( ) )
+			{
+				auto it = this->m_objects.find( p.ptr );
+				if ( it != this->m_objects.end( ) )
+				{
+					it->second.destroy( );
+					this->m_objects.erase( it );
+				}
+
+				continue;
+			}
+
 			const auto pawn_handle = memory::read<std::uint32_t>( p.ptr + SCHEMA( "CBasePlayerController", "m_hPawn"_hash ) );
 			const auto pawn = systems::g_entities.lookup( pawn_handle );
 

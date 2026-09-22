@@ -203,6 +203,7 @@ namespace features::combat {
 			float range{};
 			bool is_jump_scouting{};
 			bool is_scoped{};
+			bool has_scope{};
 			bool valid{};
 
 			float inaccuracy{};
@@ -461,6 +462,7 @@ namespace features::combat {
 		struct candidate
 		{
 			std::uintptr_t pawn{};
+			std::uint64_t steam_id{};
 			int health{};
 			int armor{};
 			float min_damage{};
@@ -487,6 +489,7 @@ namespace features::combat {
 
 			std::uintptr_t pawn{};
 			int health{};
+			bool is_priority{};
 			shared::lagcomp::record* record{};
 		};
 

@@ -84,6 +84,12 @@ namespace features::esp::player {
 
 		for ( const auto& player : players )
 		{
+			const auto steam_id = memory::read<std::uint64_t>( player.ptr + SCHEMA( "CBasePlayerController", "m_steamID"_hash ) );
+			if ( features::players::get( steam_id ).no_visuals( ) )
+			{
+				continue;
+			}
+
 			const auto info = this->get_info( player, local, want_bones, want_visible );
 			if ( !info.valid( ) )
 			{

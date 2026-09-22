@@ -501,6 +501,12 @@ namespace rendering {
 					xui::slider_float( "size##fw_logo", hud.m_fw_logo.size, 24.0f, 256.0f, "%.0f px" );
 					xui::slider_float( "speed##fw_logo", hud.m_fw_logo.speed, 0.1f, 5.0f, "%.1fx" );
 					xui::slider_int( "fps##fw_logo", hud.m_fw_logo.fps, 10, 60, "%d fps" );
+					xui::layout::separator( );
+					xui::checkbox( "override logo color##fw_logo", settings::g_cheat.m_theme.logo_color_override.value );
+					if ( settings::g_cheat.m_theme.logo_color_override.value )
+					{
+						xui::color_picker( "logo color##fw_logo", settings::g_cheat.m_theme.logo_color.value );
+					}
 					xui::end_popup( );
 				}
 
@@ -632,7 +638,7 @@ namespace rendering {
 				{
 					xui::slider_float( "width##viz", m.m_spectrum.width, 80.0f, 800.0f, "%.0f" );
 					xui::slider_float( "height##viz", m.m_spectrum.height, 16.0f, 160.0f, "%.0f" );
-					xui::slider_float( "sensitivity##viz", m.m_spectrum.sensitivity, 0.2f, 6.0f, "%.2f" );
+					xui::slider_float( "sensitivity##viz", m.m_spectrum.sensitivity, 0.2f, 10.0f, "%.2f" );
 					xui::color_picker( "color##viz", m.m_spectrum.color );
 				}
 
@@ -796,121 +802,10 @@ namespace rendering {
 				xui::layout::separator( );
 				group_header( "Player Models" );
 
-				constexpr const char* model_modes[ ]{ "local", "all", "selected" };
-				xui::combo( "mode##pm", settings::g_changer.agents.mode, model_modes, 3 );
-
-				// Model list from the workspace "models" folder (models.txt mapped).
-				static std::vector< std::string > s_model_names{};
-				static std::vector< const char* > s_model_ptrs{};
-
-				const auto rebuild_model_list = [ & ]( )
-					{
-						s_model_names.clear( );
-						s_model_names.emplace_back( "none" );
-						for ( const auto& e : features::changer::model_store::entries( ) )
-						{
-							s_model_names.push_back( e.name );
-						}
-						s_model_ptrs.clear( );
-						for ( const auto& n : s_model_names )
-						{
-							s_model_ptrs.push_back( n.c_str( ) );
-						}
-					};
-
-				if ( s_model_ptrs.empty( ) )
+				xui::text( "custom model management moved to the dedicated Studio window", tokens::col_text_dim );
+				if ( xui::button( "open models studio##pm", 150.0f, 22.0f ) )
 				{
-					rebuild_model_list( );
-				}
-
-				if ( xui::button( "reload models##pm", 140.0f, 22.0f ) )
-				{
-					features::changer::model_store::refresh( );
-					features::changer::model_store::load_mappings( );
-					rebuild_model_list( );
-				}
-
-				if ( xui::button( "add model (browse)...##pm", 170.0f, 22.0f ) )
-				{
-					// The file dialog blocks, so run it off the render thread;
-					// the poll below picks the new files up next frame.
-					std::thread( [ ]( ) { features::changer::model_store::browse_and_import( ); } ).detach( );
-				}
-
-				if ( features::changer::model_store::pending_refresh( ).load( ) )
-				{
-					features::changer::model_store::poll( );
-					features::changer::model_store::load_mappings( );
-					rebuild_model_list( );
-				}
-
-				if ( !features::changer::model_store::last_status( ).empty( ) )
-				{
-					xui::text( features::changer::model_store::last_status( ), tokens::col_text_dim );
-				}
-
-				const auto index_of = [ & ]( const std::string& name ) -> int
-					{
-						for ( auto i = 1; i < static_cast< int >( s_model_names.size( ) ); ++i )
-						{
-							if ( s_model_names[ i ] == name )
-							{
-								return i;
-							}
-						}
-						return 0;
-					};
-
-				int ct_idx = index_of( settings::g_changer.agents.custom_ct );
-				int t_idx = index_of( settings::g_changer.agents.custom_t );
-
-				if ( xui::combo( "ct model##pm", ct_idx, s_model_ptrs.data( ), static_cast< int >( s_model_ptrs.size( ) ) ) )
-				{
-					settings::g_changer.agents.custom_ct = ( ct_idx > 0 ) ? s_model_names[ ct_idx ] : std::string{};
-				}
-				if ( xui::combo( "t model##pm", t_idx, s_model_ptrs.data( ), static_cast< int >( s_model_ptrs.size( ) ) ) )
-				{
-					settings::g_changer.agents.custom_t = ( t_idx > 0 ) ? s_model_names[ t_idx ] : std::string{};
-				}
-
-				// Per-player assignment (used by "selected" mode).
-				if ( !s_model_ptrs.empty( ) )
-				{
-					xui::layout::separator( );
-					xui::text( "assign a model to a player", tokens::col_text_dim );
-
-					for ( const auto& p : systems::g_entities.get_by_type( systems::entities::type::player ) )
-					{
-						if ( !p.ptr )
-						{
-							continue;
-						}
-
-						const auto steam = memory::read< std::uint64_t >( p.ptr + SCHEMA( "CBasePlayerController", "m_steamID"_hash ) );
-						if ( steam == 0 )
-						{
-							continue;
-						}
-
-						const auto name_ptr = memory::read< std::uintptr_t >( p.ptr + SCHEMA( "CCSPlayerController", "m_sSanitizedPlayerName"_hash ) );
-						std::string label = name_ptr ? memory::read_string( name_ptr ) : std::to_string( steam );
-						label += "##pm_" + std::to_string( steam );
-
-						int idx = index_of( features::changer::model_store::find( steam ) );
-						if ( xui::combo( label.c_str( ), idx, s_model_ptrs.data( ), static_cast< int >( s_model_ptrs.size( ) ) ) )
-						{
-							auto& sel = features::changer::model_store::selections( );
-							if ( idx > 0 )
-							{
-								sel[ steam ] = s_model_names[ idx ];
-							}
-							else
-							{
-								sel.erase( steam );
-							}
-							features::changer::model_store::save( );
-						}
-					}
+					const_cast< menu& >( *this ).m_show_models = true;
 				}
 
 				xui::end_child( );

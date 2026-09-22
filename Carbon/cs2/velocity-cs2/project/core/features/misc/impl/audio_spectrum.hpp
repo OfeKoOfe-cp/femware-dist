@@ -311,7 +311,7 @@ namespace features::misc::spectrum
 			fft_radix2( re, im );
 
 			const auto& cfg = settings::g_misc.m_spectrum;
-			const float sens = std::clamp( cfg.sensitivity.value, 0.2f, 6.0f );
+			const float sens = std::clamp( cfg.sensitivity.value, 0.2f, 10.0f );
 
 			const float bin_hz = sample_rate / static_cast< float >( k_fft );
 
@@ -337,15 +337,17 @@ namespace features::misc::spectrum
 				// against k_fft left ordinary music around a couple percent of
 				// the chart, which read as "the visualizer does nothing" even
 				// while capture worked. A full-scale tone sits near -6 dBFS, so
-				// a [-70, -12] sweep keeps quiet passages subtle and loud peaks
-				// full-height.
-				constexpr float k_db_floor = -70.0f;
-				constexpr float k_db_ceil = -12.0f;
+				// the sweep is widened below and a sub-linear power curve lifts
+				// quiet passages off the 0 floor: typical music (peaks -20..-45
+				// dB per band) now fills the lower 40-80% of the chart instead
+				// of hugging the bottom 10%.
+				constexpr float k_db_floor = -80.0f;
+				constexpr float k_db_ceil = -8.0f;
 
 				const float mag = sum / static_cast< float >( k_fft );
 				const float db = 20.0f * std::log10f( mag + 1.0e-9f );
 				const float frac = std::clamp( ( db - k_db_floor ) / ( k_db_ceil - k_db_floor ), 0.0f, 1.0f );
-				const float norm = std::clamp( std::powf( frac, 1.5f ) * sens, 0.0f, 1.0f );
+				const float norm = std::clamp( std::powf( frac, 0.8f ) * sens * 1.35f, 0.0f, 1.0f );
 
 				// Fast attack, slow decay.
 				band[ b ] = norm > band[ b ] ? norm : band[ b ] * 0.82f + norm * 0.18f;
@@ -380,7 +382,7 @@ namespace features::misc::spectrum
 		ensure_started( );
 
 		const auto& band = bands( );
-		const float sens = std::clamp( sensitivity, 0.2f, 6.0f );
+		const float sens = std::clamp( sensitivity, 0.2f, 10.0f );
 
 		const float gap = 2.0f;
 		const float bw = ( w - gap * ( k_bands - 1 ) ) / static_cast< float >( k_bands );
