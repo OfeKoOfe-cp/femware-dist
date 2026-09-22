@@ -110,6 +110,8 @@ namespace rendering {
             entry cfg_cloud_on{};
             entry cfg_cloud_off{};
             entry cfg_plus{};
+			entry flag_shield{};
+			entry flag_eye{};
 			entry intro_splash{};
 			entry cat_overlay{};
 			entry dock_main{};
