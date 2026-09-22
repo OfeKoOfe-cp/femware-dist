@@ -670,6 +670,10 @@ namespace rendering {
 					xui::slider_float( "width##viz", m.m_spectrum.width, 80.0f, 800.0f, "%.0f" );
 					xui::slider_float( "height##viz", m.m_spectrum.height, 16.0f, 160.0f, "%.0f" );
 					xui::slider_float( "sensitivity##viz", m.m_spectrum.sensitivity, 0.2f, 10.0f, "%.2f" );
+					xui::slider_int( "bars##viz", m.m_spectrum.bars, 8, 64 );
+					xui::slider_float( "bar gap##viz", m.m_spectrum.gap, 0.0f, 8.0f, "%.1f" );
+					xui::checkbox( "mirror##viz", m.m_spectrum.mirror );
+					xui::checkbox( "background##viz", m.m_spectrum.background );
 					xui::color_picker( "color##viz", m.m_spectrum.color );
 				}
 

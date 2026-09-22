@@ -112,6 +112,7 @@ namespace rendering {
             entry cfg_plus{};
 			entry flag_shield{};
 			entry flag_eye{};
+			entry flag_eye_off{};
 			entry intro_splash{};
 			entry cat_overlay{};
 			entry dock_main{};
@@ -455,11 +456,9 @@ namespace rendering {
 
 			if ( act_a > 0.01f )
 			{
-				// Accent -> violet gradient pill.
-				const auto c1 = tokens::col_accent.alpha( static_cast<std::uint8_t>( 255.0f * act_a ) );
-				const auto c2 = tokens::col_accent_2.alpha( static_cast<std::uint8_t>( 255.0f * act_a ) );
-				dl.rect_filled_gradient( bx + 2.0f, abs.y + 2.0f, btn_w - 4.0f, tab_h - 4.0f,
-					c1, c2, c2, c1, xdraw::corner_radius{ 5.0f } );
+				// Soft light pill, same as the dock tabs (not an accent fill).
+				dl.rect_filled( bx + 2.0f, abs.y + 2.0f, btn_w - 4.0f, tab_h - 4.0f,
+					xdraw::color{ 255, 255, 255, static_cast< std::uint8_t >( 34.0f * act_a ) }, xdraw::corner_radius{ 5.0f } );
 			}
 			else if ( hovered )
 			{
@@ -470,8 +469,7 @@ namespace rendering {
 			const auto [tw, th] = xdraw::measure_text( tab_names[ i ] );
 			const float tx = std::floor( bx + ( btn_w - tw ) * 0.5f );
 			const float ty = std::floor( abs.y + ( tab_h - th ) * 0.5f );
-			const auto text_col = ( is_active || hovered ) ? tokens::col_text : tokens::col_text_dim;
-			dl.text( tx, ty, tab_names[ i ], text_col );
+			dl.text( tx, ty, tab_names[ i ], xui::lerp( tokens::col_text_dim, tokens::col_accent, act_a ) );
 		}
 
 		xui::layout::spacing( 4.0f );

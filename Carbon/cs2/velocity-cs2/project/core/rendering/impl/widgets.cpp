@@ -718,18 +718,24 @@ namespace rendering {
 		s_viz_y = std::clamp( s_viz_y, 0.0f, max_vy );
 
 		// Card glass.
-		draw_list.rect_filled( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_dark.alpha( 225 ), xdraw::corner_radius{ 8.0f } );
-		draw_list.rect( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_accent.alpha( 140 ), xdraw::corner_radius{ 8.0f }, 1.0f );
+		if ( cfg.background.value )
+		{
+			draw_list.rect_filled( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_dark.alpha( 225 ), xdraw::corner_radius{ 8.0f } );
+			draw_list.rect( s_viz_x, s_viz_y, s_viz_w, s_viz_h, tokens::col_accent.alpha( 140 ), xdraw::corner_radius{ 8.0f }, 1.0f );
+		}
 
 		// Clip bars AND diagnostics to the card so the hint text can never
 		// spill outside the widget at small sizes.
 		draw_list.push_clip( s_viz_x, s_viz_y, s_viz_w, s_viz_h );
 
+		const int viz_bars = std::clamp( cfg.bars.value, 8, 64 );
+		const float viz_gap = std::clamp( cfg.gap.value, 0.0f, 8.0f );
+
 		// Bars-only card: no captions. The full height goes to the spectrum so
 		// even short cards read clearly.
 		features::misc::spectrum::draw( draw_list, s_viz_x + 8.0f, s_viz_y + 4.0f,
 			std::max( 0.0f, s_viz_w - 16.0f ), std::max( 0.0f, s_viz_h - 8.0f ),
-			cfg.color.value, cfg.sensitivity.value );
+			cfg.color.value, cfg.sensitivity.value, viz_bars, viz_gap, cfg.mirror.value );
 
 		// "No audio signal" diagnostic: capture thread alive but loopback is
 		// silent (wrong default device, exclusive-mode endpoint, muted source).

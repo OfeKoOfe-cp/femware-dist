@@ -377,24 +377,32 @@ namespace features::misc::spectrum
 		}
 	}
 
-	inline void draw( xdraw::draw_list& dl, float x, float y, float w, float h, const xdraw::color& accent, float sensitivity )
+	inline void draw( xdraw::draw_list& dl, float x, float y, float w, float h, const xdraw::color& accent, float sensitivity,
+		int bar_count = k_bands, float bar_gap = 2.0f, bool mirror = false )
 	{
 		ensure_started( );
 
 		const auto& band = bands( );
 		const float sens = std::clamp( sensitivity, 0.2f, 10.0f );
+		( void )sens;
 
-		const float gap = 2.0f;
-		const float bw = ( w - gap * ( k_bands - 1 ) ) / static_cast< float >( k_bands );
+		const int count = std::clamp( bar_count, 1, k_bands );
+		const float gap = std::clamp( bar_gap, 0.0f, 10.0f );
+		const float bw = ( w - gap * ( count - 1 ) ) / static_cast< float >( count );
 		if ( bw <= 0.0f ) return;
 
-		for ( int i = 0; i < k_bands; ++i )
+		const float vm = y + h * 0.5f;
+
+		for ( int i = 0; i < count; ++i )
 		{
-			const float v = std::clamp( band[ i ], 0.0f, 1.0f );
-			const float bh = std::max( 2.5f, v * h );
+			const int bi = std::min( i * k_bands / count, k_bands - 1 );
+			const float v = std::clamp( band[ bi ], 0.0f, 1.0f );
+			const float bh = mirror
+				? std::max( 2.5f, v * h * 0.5f )
+				: std::max( 2.5f, v * h );
 			const float bx = x + static_cast< float >( i ) * ( bw + gap );
 
-			dl.rect_filled( bx, y + h - bh, bw, bh,
+			dl.rect_filled( bx, mirror ? ( vm - bh * 0.5f ) : ( y + h - bh ), bw, bh,
 				accent.alpha( static_cast< std::uint8_t >( 105.0f + 150.0f * v ) ),
 				xdraw::corner_radius{ bw * 0.5f } );
 		}

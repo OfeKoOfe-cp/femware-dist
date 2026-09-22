@@ -65,6 +65,7 @@ namespace rendering {
 		this->m_textures.cfg_plus.resource = xdraw::load_svg( svgs::cfg_plus, k_cfg_icon_scale, &this->m_textures.cfg_plus.width, &this->m_textures.cfg_plus.height );
 		this->m_textures.flag_shield.resource = xdraw::load_svg( svgs::flag_shield, k_dock_icon_scale, &this->m_textures.flag_shield.width, &this->m_textures.flag_shield.height );
 		this->m_textures.flag_eye.resource = xdraw::load_svg( svgs::flag_eye, k_dock_icon_scale, &this->m_textures.flag_eye.width, &this->m_textures.flag_eye.height );
+		this->m_textures.flag_eye_off.resource = xdraw::load_svg( svgs::flag_eye_off, k_dock_icon_scale, &this->m_textures.flag_eye_off.width, &this->m_textures.flag_eye_off.height );
 
 		constexpr auto tab_target{ 22.0f };
 		constexpr std::array<const char*, 6> tab_svgs{
