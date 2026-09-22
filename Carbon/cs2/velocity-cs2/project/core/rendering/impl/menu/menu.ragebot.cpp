@@ -46,6 +46,27 @@ namespace rendering {
 
 		xui::layout::set_cursor( body_x - wx, body_y - wy );
 
+		// Unsafe mode gate: while it is off the rage tab is an empty page with a
+		// single text reminder. Plain text only -- no banner box, no toggle.
+		if ( !settings::g_cheat.unsafe_mode.value )
+		{
+			if ( xui::begin_child( "##ragebot_unsafe_off", body_w, content_h, false ) )
+			{
+				const char* line1 = "unsafe mode is off";
+				const char* line2 = "enable it in settings to unlock the rage tab";
+				const auto [w1, h1] = xdraw::measure_text( line1 );
+				const auto [w2, h2] = xdraw::measure_text( line2 );
+				const auto [aw, ah] = xui::layout::avail( );
+				const auto r = xui::layout::item( aw, ah );
+				auto& ddl = xui::draw::current( );
+				const float ty = std::floor( r.y + ( r.h - h1 - h2 - 8.0f ) * 0.5f );
+				ddl.text( std::floor( r.x + ( r.w - w1 ) * 0.5f ), ty, line1, tokens::col_text_dim );
+				ddl.text( std::floor( r.x + ( r.w - w2 ) * 0.5f ), ty + h1 + 8.0f, line2, tokens::col_text_dim );
+				xui::end_child( );
+			}
+			return;
+		}
+
 		const auto cards_top = body_y + gap;
 		const auto card1_h   = std::floor( ( content_h - gap - gap ) * 0.58f );
 		const auto card2_h   = content_h - gap - gap - card1_h;
