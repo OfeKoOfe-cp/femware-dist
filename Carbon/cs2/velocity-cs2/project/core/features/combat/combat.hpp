@@ -323,6 +323,7 @@ namespace features::combat {
 			bool m_antiaim_active{};
 			bool m_movement_input{};
 			float m_indicator_yaw{};
+			float m_spin_yaw{};
 
 			// Steering offset (deg) away from the stable view-relative back
 			// reference, slewed per tick. Keep this separate from the view so the

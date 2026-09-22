@@ -93,13 +93,27 @@ namespace features::combat {
 		{
 			this->m_revolver_cock_ticks = 0;
 
+			const auto& config = settings::g_combat.m_ragebot.get_group( ctx.weapon_type );
+
+			// Autoscope runs BEFORE the candidate pass: the empty-scan early
+			// return below used to skip the run_gun-scoped zoom entirely, so the
+			// scope never pulled up during a peek where fire is held but no
+			// scannable enemy has resolved yet. Holding attack through the zoom
+			// animation lets the first shot leave fully scoped.
+			if ( config.auto_scope.value && ctx.has_scope && !ctx.is_scoped
+				&& ( cmd->buttons.value & cstypes::command_buttons::in_attack ) )
+			{
+				cmd->buttons.value |= cstypes::command_buttons::in_second_attack;
+				cmd->buttons.value_changed |= cstypes::command_buttons::in_second_attack;
+				this->m_should_stop = true;
+			}
+
 			// Cheap pass first. The movement prediction inside build_context is
 			// the single heaviest per-tick cost, so skip it entirely when there
 			// is nothing scannable.
 			auto candidates = this->gather_candidates( local );
 			if ( candidates.empty( ) )
 			{
-				const auto& config = settings::g_combat.m_ragebot.get_group( ctx.weapon_type );
 				if ( config.doubletap.value )
 				{
 					( void ) this->process_doubletap( cmd, local, false, false, false );
@@ -195,7 +209,7 @@ namespace features::combat {
 			ctx.inaccuracy = out.predicted_inaccuracy;
 		}
 		out.weapon_max_speed = ctx.weapon_max_speed;
-		out.accurate_threshold = ctx.weapon_max_speed * 0.34f;
+		out.accurate_threshold = ctx.weapon_max_speed * ( settings::g_combat.m_ragebot.get_group( ctx.weapon_type ).stop_speed_percent.value * 0.01f );
 
 		return out;
 	}

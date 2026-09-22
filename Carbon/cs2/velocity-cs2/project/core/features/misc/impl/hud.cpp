@@ -43,86 +43,12 @@ namespace features::misc {
 
 		this->do_scope( draw_list, cx, cy, static_cast< float >( screen_h ), local.pawn );
 		this->do_crosshair( draw_list, cx, cy, local.pawn );
-		this->do_combat_badges( draw_list, cx, cy, local.pawn );
 		this->do_recoil( draw_list, cx, cy, static_cast< float >( screen_h ), local.pawn );
 		this->do_china_hat( draw_list, local.pawn );
 		this->do_soup_jump_rings( draw_list, local.pawn );
 		this->do_soup_motes( draw_list, local.pawn );
 		this->do_soup_trails( draw_list, local.pawn );
 		this->do_velocity( draw_list, cx, static_cast< float >( screen_h ), local.pawn );
-	}
-
-	void hud::do_combat_badges( xdraw::draw_list& draw_list, float cx, float cy, std::uintptr_t local_pawn ) const
-	{
-		( void )local_pawn;
-		const auto& cfg = settings::g_misc.m_hud.m_combat_badges;
-		if ( !cfg.enabled.value )
-		{
-			return;
-		}
-
-		struct badge_entry
-		{
-			std::string text{};
-			xdraw::color col{};
-		};
-
-		std::vector<badge_entry> badges{};
-
-		const auto& ctx = features::combat::g_shared.ctx( );
-		const auto has_weapon = ctx.valid && ctx.weapon_type >= cstypes::weapon_type::pistol && ctx.weapon_type <= cstypes::weapon_type::lmg;
-
-		if ( has_weapon && settings::g_combat.m_ragebot.enabled.value )
-		{
-			const auto& group = settings::g_combat.m_ragebot.get_group( ctx.weapon_type );
-
-			if ( cfg.show_dmg.value && group.min_damage_override.bind.active )
-			{
-				badges.push_back( { "DMG " + std::to_string( group.min_damage_override_value.value ), xdraw::color{ 255, 112, 67, 255 } } );
-			}
-
-			if ( cfg.show_hc.value && group.hitchance_override.bind.active )
-			{
-				badges.push_back( { "HC " + std::to_string( group.hitchance_override_value.value ) + "%", xdraw::color{ 56, 189, 248, 255 } } );
-			}
-
-			if ( cfg.show_baim.value && group.body_aim.bind.active )
-			{
-				badges.push_back( { "BAIM", xdraw::color{ 251, 191, 36, 255 } } );
-			}
-		}
-
-		if ( cfg.show_fd.value && settings::g_combat.m_fakeduck.enabled.bind.active )
-		{
-			badges.push_back( { "FD", xdraw::color{ 52, 211, 153, 255 } } );
-		}
-
-		if ( cfg.show_peek.value && settings::g_combat.m_quickpeek.enabled.bind.active )
-		{
-			badges.push_back( { "PEEK", xdraw::color{ 167, 139, 250, 255 } } );
-		}
-
-		if ( badges.empty( ) )
-		{
-			return;
-		}
-
-		float cur_y = cy + 26.0f;
-		constexpr float pill_h = 16.0f;
-		constexpr float pad_x = 6.0f;
-
-		for ( const auto& b : badges )
-		{
-			const auto [tw, th] = xdraw::measure_text( b.text );
-			const float pill_w = tw + pad_x * 2.0f;
-			const float pill_x = std::floor( cx - pill_w * 0.5f );
-
-			draw_list.rect_filled( pill_x, cur_y, pill_w, pill_h, xdraw::color{ 14, 16, 24, 220 }, xdraw::corner_radius{ 3.0f } );
-			draw_list.rect( pill_x, cur_y, pill_w, pill_h, b.col.alpha( 110 ), xdraw::corner_radius{ 3.0f }, 1.0f );
-			draw_list.text( pill_x + pad_x, cur_y + std::floor( ( pill_h - th ) * 0.5f ), b.text, b.col );
-
-			cur_y += pill_h + 3.0f;
-		}
 	}
 
 	void hud::do_crosshair( xdraw::draw_list& draw_list, float cx, float cy, std::uintptr_t local_pawn ) const

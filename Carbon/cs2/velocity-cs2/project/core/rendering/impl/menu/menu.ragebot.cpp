@@ -9,7 +9,7 @@ namespace rendering {
 
 		constexpr const char* hitbox_names[ ]{ "head", "chest", "stomach", "arms", "legs", "paws" };
 		constexpr const char* pitch_items[ ]{ "none", "down", "up" };
-		constexpr const char* yaw_items[ ]{ "desync", "jitter", "backward", "legit desync" };
+		constexpr const char* yaw_items[ ]{ "desync", "jitter", "backward", "legit desync", "spin" };
 		constexpr const char* fakelag_mode_items[ ]{ "always", "while standing", "while moving", "while in air" };
 
 	} // namespace detail
@@ -28,7 +28,6 @@ namespace rendering {
 		auto& lg = s.m_lagcomp;
 		auto& fl = s.m_fakelag;
 		auto& rs = s.m_resolver;
-		auto& badges = settings::g_misc.m_hud.m_combat_badges;
 
 		auto& wg = rb.groups[ this->m_subtab ];
 
@@ -85,7 +84,10 @@ namespace rendering {
 			xui::checkbox( "doubletap lethal", wg.doubletap_lethal );
 			xui::checkbox( "force shot in air", wg.force_shot_air );
 			xui::checkbox( "force shot on ground", wg.force_shot );
+			xui::slider_float( "stop speed %", wg.stop_speed_percent, 1.0f, 100.0f, "%.0f%%" );
 			xui::checkbox( "extrapolation", lg.extrapolation );
+			xui::slider_int( "max backtrack ticks", lg.max_backtrack_ticks, 1, 20, "%d" );
+			xui::slider_int( "max extrapolate ticks", lg.max_extrapolate_ticks, 1, 20, "%d" );
 			xui::slider_float( "max fov", wg.max_fov, 1.0f, 180.0f, "%.0f°" );
 
 			xui::slider_int( "hit chance", wg.hitchance, 25, 100, "%d%%" );
@@ -141,11 +143,19 @@ namespace rendering {
 			xui::checkbox( "anti aim", aa.enabled );
 
 			xui::combo( "pitch", aa.pitch.value, detail::pitch_items, 3 );
-			xui::combo( "yaw style", aa.yaw_style.value, detail::yaw_items, 4 );
+			xui::combo( "yaw style", aa.yaw_style.value, detail::yaw_items, 5 );
+			if ( aa.yaw_style.value == settings::combat::antiaim::yaw_mode::spin )
+			{
+				xui::slider_float( "spin speed", aa.spin_speed, -45.0f, 45.0f, "%.0f°/tick" );
+			}
 			xui::slider_float( "yaw offset", aa.yaw_offset, -180.0f, 180.0f, "%.0f°" );
 			xui::slider_float( "jitter range", aa.jitter_range, 1.0f, 180.0f, "%.0f°" );
 			xui::slider_float( "desync amount", aa.desync_amount, 1.0f, 180.0f, "%.0f°" );
 			xui::checkbox( "lby breaker", aa.lby_breaker );
+			if ( aa.lby_breaker.value )
+			{
+				xui::slider_int( "lby interval", aa.lby_breaker_interval, 30, 120, "%d ticks" );
+			}
 			xui::checkbox( "compensate roll", aa.auto_yaw_adjust );
 			xui::checkbox( "force left", aa.manual_left );
 			xui::checkbox( "force right", aa.manual_right );
@@ -200,6 +210,11 @@ namespace rendering {
 			}
 
 			xui::checkbox( "auto revolver", autos.revolver );
+			if ( autos.revolver.value )
+			{
+				xui::slider_int( "cock delay", autos.revolver_cock_ticks, 1, 30, "%d ticks" );
+				xui::checkbox( "prefer right click", autos.revolver_prefer_right_click );
+			}
 
 			xui::checkbox( "zeusbot", zb.enabled );
 			if ( zb.enabled.value )
@@ -212,19 +227,6 @@ namespace rendering {
 			if ( kb.enabled.value )
 			{
 				xui::slider_float( "max fov##kb", kb.max_fov, 1.0f, 180.0f, "%.0f°" );
-			}
-
-			xui::layout::separator( );
-
-			xui::checkbox( "combat badges", badges.enabled );
-			if ( xui::begin_popup( "##combat_badges_popup", 220.0f ) )
-			{
-				xui::checkbox( "show damage override", badges.show_dmg );
-				xui::checkbox( "show hitchance override", badges.show_hc );
-				xui::checkbox( "show b-aim", badges.show_baim );
-				xui::checkbox( "show fake duck", badges.show_fd );
-				xui::checkbox( "show quick peek", badges.show_peek );
-				xui::end_popup( );
 			}
 
 			xui::end_child( );

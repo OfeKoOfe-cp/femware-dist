@@ -209,7 +209,7 @@ namespace features::combat {
 					--this->m_lby_break_ticks;
 					this->m_lby_break_now = true;
 				}
-				else if ( ++this->m_lby_elapsed_ticks >= this->k_lby_breaker_period )
+				else if ( ++this->m_lby_elapsed_ticks >= std::max( 1, cfg.lby_breaker_interval.value ) )
 				{
 					this->m_lby_break_ticks = this->k_lby_breaker_hold;
 					this->m_lby_elapsed_ticks = 0;
@@ -242,14 +242,19 @@ namespace features::combat {
 
 		if ( this->m_movement_input )
 		{
-			// Movement fake (clean backwards): a PURE 180deg offset is cardinal,
-			// so rotate_user_movement flips W->S directly -- no W->W+A / W+D
-			// diagonal re-encode, walking and bhop speed stay native while the
-			// body still visibly faces away. Per-tick jitter/flip styles are
-			// what rotate the movement basis off-cardinal, so those resume the
-			// instant the player stands; moving carries only the clean flip.
-			this->m_modified_angles.y = math::helpers::normalize_yaw( this->m_old_angles.y - 180.0f );
-			this->m_indicator_yaw = this->m_modified_angles.y;
+			// Spin keeps rotating while moving; every other style carries the
+			// clean cardinal flip so the movement basis stays native.
+			if ( cfg.yaw_style == settings::combat::antiaim::yaw_mode::spin )
+			{
+				this->m_spin_yaw = math::helpers::normalize_yaw( this->m_spin_yaw + cfg.spin_speed.value );
+				this->m_modified_angles.y = this->m_spin_yaw;
+				this->m_indicator_yaw = this->m_spin_yaw;
+			}
+			else
+			{
+				this->m_modified_angles.y = math::helpers::normalize_yaw( this->m_old_angles.y - 180.0f );
+				this->m_indicator_yaw = this->m_modified_angles.y;
+			}
 		}
 		else
 		{
@@ -580,6 +585,18 @@ namespace features::combat {
 		if ( settings::g_combat.m_antiaim.yaw_style == settings::combat::antiaim::yaw_mode::legit_desync )
 		{
 			base_yaw_offset = 0.0f;
+		}
+
+		// Spin: a free continuous rotation, independent of view, threat steering
+		// and manual sides. Owns the whole yaw so it runs ahead of every other
+		// branch here (stationary ticks reach this, moving ticks route through
+		// its own spin path in on_create_move).
+		if ( settings::g_combat.m_antiaim.yaw_style == settings::combat::antiaim::yaw_mode::spin )
+		{
+			const auto& aa_cfg = settings::g_combat.m_antiaim;
+			this->m_spin_yaw = math::helpers::normalize_yaw( this->m_spin_yaw + aa_cfg.spin_speed.value );
+			this->m_indicator_yaw = this->m_spin_yaw;
+			return this->m_spin_yaw;
 		}
 
 		const auto view_yaw = view_angles.y;
