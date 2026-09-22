@@ -835,15 +835,6 @@ namespace rendering {
 					xui::end_popup( );
 				}
 
-				xui::layout::separator( );
-				group_header( "Player Models" );
-
-				xui::text( "custom model management moved to the dedicated Studio window", tokens::col_text_dim );
-				if ( xui::button( "open models studio##pm", 150.0f, 22.0f ) )
-				{
-					const_cast< menu& >( *this ).m_show_models = true;
-				}
-
 				xui::end_child( );
 			}
 		}
