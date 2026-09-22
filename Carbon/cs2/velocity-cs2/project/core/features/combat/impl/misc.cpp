@@ -718,7 +718,7 @@ namespace features::combat {
 				// which reads as the body constantly spinning with players
 				// around. Bias toward whoever was picked last so only a
 				// genuinely better threat (by > this margin) steals the yaw.
-				constexpr float k_last_target_loyalty = 14.0f;
+				const float k_last_target_loyalty = static_cast< float >( settings::g_combat.m_ragebot.target_loyalty.value );
 
 				for ( const auto& p : players )
 				{

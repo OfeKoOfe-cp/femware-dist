@@ -88,6 +88,8 @@ namespace rendering {
 			xui::checkbox( "extrapolation", lg.extrapolation );
 			xui::slider_int( "max backtrack ticks", lg.max_backtrack_ticks, 1, 20, "%d" );
 			xui::slider_int( "max extrapolate ticks", lg.max_extrapolate_ticks, 1, 20, "%d" );
+			xui::slider_int( "target loyalty", rb.target_loyalty, 0, 30, "%d ticks" );
+			xui::slider_float( "point scale bias", rb.pointscale_bias, 0.0f, 1.0f, "%.2f" );
 			xui::slider_float( "max fov", wg.max_fov, 1.0f, 180.0f, "%.0f°" );
 
 			xui::slider_int( "hit chance", wg.hitchance, 25, 100, "%d%%" );
