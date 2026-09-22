@@ -42,29 +42,28 @@ namespace rendering {
 
 		const auto gap      = tokens::gap;
 
-		// Unsafe-mode lock: while unsafe mode is off the whole rage section
-		// stays hidden behind a single gate toggle -- no config cards are
-		// drawn at all, so nothing leaks visually.
+		// Unsafe-mode gate: while unsafe mode is off the whole rage section is
+		// hidden behind a reminder banner -- the toggle itself only lives in
+		// Settings, so there is no stray unsafe control on this page.
 		const auto unsafe_active = settings::g_cheat.unsafe_mode.value;
-		const auto banner_h      = 46.0f;
 		const auto content_h     = this->m_body_h;
 
 		xui::layout::set_cursor( body_x - wx, body_y - wy );
-		if ( xui::begin_child( "##ragebot_unsafe", body_w, banner_h, true ) )
+		if ( !unsafe_active )
 		{
-			group_header( "Unsafe Mode" );
-			xui::checkbox( "unsafe mode##rage", settings::g_cheat.unsafe_mode );
-			xui::end_child( );
+			const auto banner_h = 46.0f;
+			if ( xui::begin_child( "##ragebot_unsafe_reminder", body_w, banner_h, true ) )
+			{
+				group_header( "Unsafe Mode" );
+				xui::text( "off — enable it in Settings to unlock the rage tab", tokens::col_text_dim );
+				xui::end_child( );
+			}
+			return;
 		}
 
-		if ( !unsafe_active )
- 		{
- 			return;
- 		}
-
-		const auto cards_top = body_y + banner_h + gap;
-		const auto card1_h   = std::floor( ( content_h - banner_h - gap - gap ) * 0.58f );
-		const auto card2_h   = content_h - banner_h - gap - gap - card1_h;
+		const auto cards_top = body_y + gap;
+		const auto card1_h   = std::floor( ( content_h - gap - gap ) * 0.58f );
+		const auto card2_h   = content_h - gap - gap - card1_h;
 
 		// ── Left Column: Aimbot & Targeting + Hitscan & Multipoint ──
 		xui::layout::set_cursor( body_x - wx, cards_top - wy );

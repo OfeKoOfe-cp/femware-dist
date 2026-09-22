@@ -364,7 +364,7 @@ namespace features::esp::player {
 			player_cfg.local.enabled.value || player_cfg.local_ragdoll.enabled.value ||
 			player_cfg.backtrack.enabled.value || player_cfg.onshot.enabled.value;
 
-		if ( !player_chams_active && !settings::g_esp.m_item.m_chams.enabled.value )
+		if ( !player_chams_active && !settings::g_esp.m_item.m_chams.enabled.value && !settings::g_misc.m_chicken_chams.m_chams.enabled.value )
 		{
 			return;
 		}

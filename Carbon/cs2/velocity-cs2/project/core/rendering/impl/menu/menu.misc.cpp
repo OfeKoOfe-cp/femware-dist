@@ -65,6 +65,37 @@ namespace rendering {
 
 		constexpr const char* spark_types[ ]{ "stars", "hearts", "bloom", "glyph", "blink", "coron", "dollar", "flame", "geometric", "snowflake", "virus", "sword", "network", "cube", "pyramid" };
 		constexpr const char* spark_physics[ ]{ "fall", "fly", "emerge" };
+
+		constexpr const char* k_cham_material_names[ ]{
+			"liquid", "metallic", "matte", "flat", "bloom", "outlines", "glow", "electric", "distortion", "hologram", "pearl", "crystal", "velvet", "plasma", "glass",
+			"liquid (iz)", "matte (iz)", "flat (iz)", "bloom (iz)", "outlines (iz)", "glow (iz)", "distortion (iz)", "hologram (iz)", "electric (iz)", "pearl (iz)", "crystal (iz)", "plasma (iz)", "glass (iz)"
+		};
+		constexpr auto k_cham_material_count = static_cast< int >( settings::esp::cham_ids::count );
+
+		inline static void draw_chicken_chams( )
+		{
+			auto& cfg = settings::g_misc.m_chicken_chams.m_chams;
+			xui::checkbox( "chicken chams", cfg.enabled );
+
+			if ( cfg.enabled.value )
+			{
+				const auto draw_layer = [ ]( const char* label, const char* popup_id, settings::esp::chams_layer& layer )
+				{
+					xui::checkbox( label, layer.enabled );
+					if ( xui::begin_popup( popup_id, 220.0f ) )
+					{
+						xui::combo( "material", layer.material.value, k_cham_material_names, k_cham_material_count );
+						xui::color_picker( "color", layer.color );
+						xui::slider_float( "fresnel exponent", layer.fresnel_exponent, 0.1f, 10.0f, "%.1f" );
+						xui::checkbox( "wireframe", layer.wireframe );
+						xui::end_popup( );
+					}
+				};
+
+				draw_layer( "visible chams##chk", "##visible_chk", cfg.primary );
+				draw_layer( "non-visible chams##chk", "##non_visible_chk", cfg.secondary );
+			}
+		}
 	} // namespace detail
 
 	void menu::draw_misc( float group_w ) const
@@ -674,6 +705,11 @@ namespace rendering {
 				xui::checkbox( "auto accept", m.auto_accept );
 				xui::checkbox( "preserve killfeed", m.preserve_killfeed );
 				xui::checkbox( "disable game logs", m.disable_game_logs );
+
+				xui::layout::separator( );
+
+				group_header( "Chicken Chams" );
+				detail::draw_chicken_chams( );
 
 				xui::end_child( );
 			}

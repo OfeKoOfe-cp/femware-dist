@@ -194,6 +194,16 @@ namespace features::esp::other {
 		const auto bomb_site = memory::read<int>( planted_c4 + SCHEMA( "C_PlantedC4", "m_nBombSite"_hash ) );
 		const auto being_defused = memory::read<bool>( planted_c4 + SCHEMA( "C_PlantedC4", "m_bBeingDefused"_hash ) );
 		const auto timer_length = memory::read<float>( planted_c4 + SCHEMA( "C_PlantedC4", "m_flTimerLength"_hash ) );
+		const auto defuse_count_down = memory::read<float>( planted_c4 + SCHEMA( "C_PlantedC4", "m_flDefuseCountDown"_hash ) );
+		const auto defuse_length = memory::read<float>( planted_c4 + SCHEMA( "C_PlantedC4", "m_flDefuseLength"_hash ) );
+
+		// When the bomb is being defused the authoritative countdown is the
+		// defuse progress, not the detonation clock. Compare the two so the
+		// pull of the tug-of-war (defuse finish vs explosion) decides what is
+		// displayed and how the bar colors.
+		const auto defuse_remaining = being_defused ? std::max( 0.0f, defuse_count_down - current_time ) : 0.0f;
+		const bool defuse_will_win = being_defused && ( defuse_remaining > 0.0f ) && ( defuse_remaining < time_remaining );
+		const bool explosion_will_win = being_defused && ( !defuse_will_win ) && ( time_remaining > 0.0f );
 
 		const auto calculate_bomb_damage = [ & ]( ) -> float
 			{
@@ -268,6 +278,21 @@ namespace features::esp::other {
 					return { 255, 100, 100, 255 };
 				}
 
+				// While defusing, the color tracks the defuse-vs-detonation race
+				// instead of raw bomb time. Defuse winning leans green, losing
+				// leans red.
+				if ( being_defused )
+				{
+					if ( defuse_will_win )
+					{
+						return { 90, 220, 150, 255 };
+					}
+					if ( explosion_will_win )
+					{
+						return { 255, 110, 100, 255 };
+					}
+				}
+
 				const auto frac = timer_length > 0.0f ? time_remaining / timer_length : 1.0f;
 
 				if ( frac > 0.5f )
@@ -325,10 +350,17 @@ namespace features::esp::other {
 			strncpy_s( timer_buf, sizeof( timer_buf ), "0.0s", _TRUNCATE );
 			timer_unit = " exploding";
 		}
+		else if ( being_defused )
+		{
+			// Show the countdown that actually matters mid-defuse: the defuse
+			// finishing time, with a flag stating whether it beats the blast.
+			std::snprintf( timer_buf, sizeof( timer_buf ), "%.1fs", defuse_remaining );
+			timer_unit = defuse_will_win ? " defused!" : " too late!";
+		}
 		else
 		{
 			std::snprintf( timer_buf, sizeof( timer_buf ), "%.1fs", time_remaining );
-			timer_unit = being_defused ? " defusing" : " explosion";
+			timer_unit = " explosion";
 		}
 
 		const auto [timer_vw, timer_vh] = xdraw::measure_text( timer_buf );
