@@ -44,6 +44,8 @@ namespace rendering {
 		void destroy_streamproof_overlay( );
 		bool update_streamproof_overlay( );
 		bool render_streamproof_overlay( );
+		bool force_streamproof_windowed( );
+		void restore_streamproof_windowed( );
 
 		ID3D11Device* m_device{ nullptr };
 		ID3D11DeviceContext* m_context{ nullptr };
@@ -53,6 +55,8 @@ namespace rendering {
 		bool m_ui_assets_ready{ false };
 		int m_game_w{ 0 };
 		int m_game_h{ 0 };
+		IDXGISwapChain* m_swap_chain{ nullptr };
+		bool m_overlay_forced_windowed{ false };
 
 		HWND m_overlay_window{ nullptr };
 		ID3D11Texture2D* m_overlay_texture{ nullptr };
