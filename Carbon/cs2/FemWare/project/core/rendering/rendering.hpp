@@ -270,6 +270,7 @@ namespace rendering {
 		struct lua_log_entry
 		{
 			std::string time{};
+			std::string tag{};
 			std::string text{};
 			xdraw::color col{ 255, 255, 255, 255 };
 		};
@@ -282,6 +283,7 @@ namespace rendering {
 		float m_console_w{ 720.0f };
 		float m_console_h{ 300.0f };
 		std::string m_console_input_buf{};
+		std::size_t m_console_last_count{ 0 };
 
 		// Dedicated Documentation Workspace State
 		float m_docs_x{ 580.0f };
