@@ -84,6 +84,8 @@ namespace rendering {
 			xui::checkbox( "doubletap lethal", wg.doubletap_lethal );
 			xui::checkbox( "force shot in air", wg.force_shot_air );
 			xui::checkbox( "force shot on ground", wg.force_shot );
+			xui::checkbox( "autostop", rb.auto_stop );
+			xui::checkbox( "autostop in air", rb.auto_stop_air );
 			xui::slider_float( "stop speed %", wg.stop_speed_percent, 1.0f, 100.0f, "%.0f%%" );
 			xui::checkbox( "extrapolation", lg.extrapolation );
 			xui::slider_int( "max backtrack ticks", lg.max_backtrack_ticks, 1, 20, "%d" );

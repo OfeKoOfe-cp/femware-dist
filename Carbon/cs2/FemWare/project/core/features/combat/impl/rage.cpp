@@ -100,7 +100,7 @@ namespace features::combat {
 			// scope never pulled up during a peek where fire is held but no
 			// scannable enemy has resolved yet. Holding attack through the zoom
 			// animation lets the first shot leave fully scoped.
-			if ( config.auto_scope.value && ctx.has_scope && !ctx.is_scoped
+			if ( settings::g_combat.m_ragebot.auto_stop.value && config.auto_scope.value && ctx.has_scope && !ctx.is_scoped
 				&& ( cmd->buttons.value & cstypes::command_buttons::in_attack ) )
 			{
 				cmd->buttons.value |= cstypes::command_buttons::in_second_attack;
