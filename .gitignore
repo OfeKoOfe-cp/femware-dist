@@ -1,0 +1,14 @@
+.aider*
+
+# Local-only payload signing key (runner for the Worker PAYLOAD_KEY secret).
+loader/local/
+
+# Internal sources — never publish.
+Carbon/
+loader/
+webradar/
+licensing/
+_backups/
+UI_REDESIGN_HANDOFF.md
+tasks.md
+install_webradar_maps.ps1
