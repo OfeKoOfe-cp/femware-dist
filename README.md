@@ -19,6 +19,23 @@ events.listen("on_draw", function()
 end)
 ```
 
+## Global functions
+
+### `loadstring(source_or_url, [chunk_name]) -> fn or nil, err`
+
+Luau-style `loadstring`. Compiles a script and returns its function. If the first argument is an
+`http(s)://` url it fetches the raw script first and compiles the fetched body, so raw links can
+be executed directly:
+
+```lua
+local fn, err = loadstring("https://raw.githubusercontent.com/user/repo/main/esp.lua")
+if fn then
+    fn()
+else
+    client.log("load failed: " .. tostring(err))
+end
+```
+
 ## Modules
 
 | Module | Purpose |
