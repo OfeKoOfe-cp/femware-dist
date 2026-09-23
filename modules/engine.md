@@ -9,6 +9,7 @@
 | `engine.get_delta_time()` | seconds | Alias of `render.delta_time`. |
 | `engine.get_time()` | seconds | Time since process start. |
 | `engine.is_key_down(vk_code)` | bool | Alias of `client.is_key_down`. |
+| `engine.execute_cmd(cmd)` | — | Runs a console command string on the client. |
 
 ```lua
 if engine.is_in_game() then
