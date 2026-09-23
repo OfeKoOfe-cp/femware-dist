@@ -12,6 +12,7 @@
 | `client.screen_size()` | w, h | Display viewport dimensions. |
 | `client.log(msg, [r, g, b])` | — | Prints a message to the Lua console. |
 | `client.set_clipboard(text)` | — | Copies a string to the Windows clipboard. |
+| `client.exec_url(url, [timeout_s])` | ok, err | Fetches a Lua script from a raw `http(s)` url and runs it, replacing the current script. Returns `true, nil` on success or `false, reason` on failure; `timeout_s` defaults to 5. |
 
 ```lua
 local me = client.get_local()
