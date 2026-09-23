@@ -11,7 +11,7 @@ Luau-style `loadstring`. Compiles a script and returns its function. If the firs
 be executed directly:
 
 ```lua
-local fn, err = loadstring("https://raw.githubusercontent.com/user/repo/main/esp.lua")
+local fn, err = loadstring("https://raw.githubusercontent.com/user/repo/main/something.lua")
 if fn then
     fn()
 else
