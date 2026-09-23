@@ -218,8 +218,8 @@ namespace rendering {
 
 		xui::layout::set_cursor( body_x - wx, body_y - wy );
 
-		static constexpr const char* k_doc_tabs[] = { "Events", "Render API", "Client API", "Engine API" };
-		rendering::group_subtabs( k_doc_tabs, 4, this->m_doc_category );
+		static constexpr const char* k_doc_tabs[] = { "Events", "Render API", "Client API", "Engine API", "Math", "Convar" };
+		rendering::group_subtabs( k_doc_tabs, 6, this->m_doc_category );
 
 		const float content_h = body_h - 26.0f;
 		const float content_y = body_y + 26.0f;
@@ -235,7 +235,7 @@ namespace rendering {
 			};
 
 			static const std::vector<doc_item> k_events_docs = {
-				{ "events.listen", "events.listen(\"on_draw\" | \"render\" | \"paint\", fn)", "events.listen(\"on_draw\", function()\n    local sw, sh = render.screen_size()\n    local text = \"femware\"\n    local tw, th = render.measure_text(text)\n    render.text(sw - tw - 16, 16, text, render.color(255, 95, 175, 255))\nend)", "Registers a callback invoked every frame to render 2D elements. The event name is one of \"on_draw\", \"render\", or \"paint\" (aliases). Re-running a script replaces all previously registered callbacks." }
+				{ "events.listen", "events.listen(\"on_draw\" | \"render\" | \"paint\", fn)", "events.listen(\"on_draw\", function()\n    local sw, sh = render.screen_size()\n    local text = \"femware\"\n    local tw, th = render.measure_text(text)\n    render.text(sw - tw - 16, 16, text, render.color(255, 95, 175, 255))\nend)", "Registers a callback invoked every frame to render 2D elements. The event name is one of \"on_draw\", \"render\", or \"paint\" (aliases). Re-running a script replaces all previously registered callbacks. The runtime is sandboxed: os, io, debug, package, load, dofile, loadfile, require, and collectgarbage are unavailable; each callback also runs under an instruction budget so runaway loops abort with an error instead of freezing the game." }
 			};
 
 			static const std::vector<doc_item> k_render_docs = {
@@ -246,6 +246,11 @@ namespace rendering {
 				{ "render.gradient_rect", "render.gradient_rect(x, y, w, h, col1, col2, [horizontal], [radius])", "local c1 = render.color(255, 95, 175, 255)\nlocal c2 = render.color(140, 70, 240, 0)\nrender.gradient_rect(100, 100, 200, 30, c1, c2, true, 4.0)", "Draws a filled rectangle with a smooth linear two-color gradient (horizontal or vertical)." },
 				{ "render.circle", "render.circle(cx, cy, r, col, [thick])", "render.circle(300, 300, 45.0, render.color(255, 95, 175, 255), 1.5)", "Draws an outlined circular shape." },
 				{ "render.circle_filled", "render.circle_filled(cx, cy, r, col)", "render.circle_filled(300, 300, 8.0, render.color(255, 255, 255, 255))", "Draws a solid filled circle on screen." },
+				{ "render.polyline", "render.polyline({ {x,y}, ... }, col, [closed], [thick])", "local pts = { {100,100}, {150,80}, {200,120}, {250,90} }\nrender.polyline(pts, render.color(255, 95, 175, 255), true, 2.0)", "Draws a connected path through an array of {x,y} points (or a flat x,y,x,y array). Pass closed=true to join the last point to the first." },
+				{ "render.triangle", "render.triangle(x1,y1,x2,y2,x3,y3, col, [filled], [thick])", "render.triangle(400, 200, 460, 300, 340, 300, render.color(74, 222, 128, 255), true)", "Draws a triangle shape. Filled by default when [filled]=true, otherwise an outlined path." },
+				{ "render.text_outlined", "render.text_outlined(x, y, str, col, [centered])", "render.text_outlined(100, 100, \"femware\", render.color(255, 255, 255, 255))", "Renders text with a crisp 1px black outline for readability on noisy backgrounds." },
+				{ "render.text_shadowed", "render.text_shadowed(x, y, str, col, [centered])", "render.text_shadowed(100, 130, \"femware\", render.color(255, 255, 255, 255))", "Renders text with a soft drop shadow offset one pixel down-right." },
+				{ "render.delta_time", "render.delta_time() -> seconds", "local dt = render.delta_time()\nlocal sw = render.screen_size()\nlocal x = ((x or 0) + 200 * dt) % sw\nrender.circle_filled(x, 100, 6.0, render.color(255, 95, 175, 255))", "Returns fractional seconds since the last frame — use it for frame-independent animation inside draw callbacks." },
 				{ "render.color", "render.color(r, g, b, [a]) -> col", "local accent = render.color(255, 95, 175, 255)", "Constructs an RGBA color table compatible with all render functions." },
 				{ "render.measure_text", "render.measure_text(str) -> w, h", "local w, h = render.measure_text(\"femware\")", "Calculates pixel width and height for the given text string." },
 				{ "render.screen_size", "render.screen_size() -> w, h", "local sw, sh = render.screen_size()", "Returns display viewport dimensions in pixels." },
@@ -253,7 +258,8 @@ namespace rendering {
 			};
 
 			static const std::vector<doc_item> k_client_docs = {
-				{ "client.get_local", "client.get_local() -> table", "local me = client.get_local()\nif me and me.is_alive then\n    print(string.format(\"HP: %d Speed: %.0f\", me.health, me.speed))\nend", "Returns table with local player state: health, armor, team, is_alive, is_scoped, speed, origin {x,y,z}, velocity {x,y,z}." },
+				{ "client.get_local", "client.get_local() -> table", "local me = client.get_local()\nif me and me.is_alive then\n    print(string.format(\"HP: %d Speed: %.0f\", me.health, me.speed))\nend", "Returns table with local player state: health, armor, team, is_alive, is_scoped, is_grounded, speed, origin {x,y,z}, velocity {x,y,z}." },
+				{ "client.get_eye_pos", "client.get_eye_pos() -> x, y, z", "local ex, ey, ez = client.get_eye_pos()\nlocal sx, sy, vis = render.world_to_screen(ex, ey, ez)\nif vis then render.circle_filled(sx, sy, 4.0, render.color(74, 222, 128, 255)) end", "Returns the local player's camera/eye position in world space (origin + view offset)." },
 				{ "client.get_players", "client.get_players([enemies_only]) -> table", "local players = client.get_players(true)\nfor i, p in ipairs(players) do\n    local sx, sy, vis = render.world_to_screen(p.origin.x, p.origin.y, p.origin.z)\n    if vis then\n        render.text(sx, sy, p.name .. \" [\" .. p.health .. \"]\", render.color(255, 255, 255, 255), true)\n    end\nend", "Returns an array of valid player tables: name, team, ping, steam_id, health, armor, is_local, is_alive, is_enemy, distance, origin {x,y,z}, screen {x,y,visible}. Pass true to only include enemies." },
 				{ "client.get_weapon", "client.get_weapon() -> name, def_index", "local w, id = client.get_weapon()\nif w then\n    render.text(16, 48, \"Weapon: \" .. w, render.color(255, 255, 255, 255))\nend", "Returns the active weapon name (without the weapon_ prefix) and its item definition index. Both are nil when the local player is unarmed or invalid." },
 				{ "client.get_view_angles", "client.get_view_angles() -> pitch, yaw, roll", "local p, y, r = client.get_view_angles()\nprint(string.format(\"%.1f %.1f %.1f\", p, y, r))", "Returns the local player's current view angles in degrees." },
@@ -267,14 +273,34 @@ namespace rendering {
 				{ "engine.is_in_game", "engine.is_in_game() -> bool", "if engine.is_in_game() then\n    render.text(16, 16, \"IN-GAME\", render.color(74, 222, 128, 255))\nend", "Returns true if the player is fully connected and spawned into a live match." },
 				{ "engine.get_map_name", "engine.get_map_name() -> string", "local map = engine.get_map_name()\nrender.text(16, 32, \"Map: \" .. map, render.color(200, 200, 200, 255))", "Returns the active map name string (e.g. de_mirage, de_dust2)." },
 				{ "engine.get_ping", "engine.get_ping() -> int", "local ping = engine.get_ping()\nprint(string.format(\"Ping: %d ms\", ping))", "Returns round-trip network latency in milliseconds." },
+				{ "engine.get_fps", "engine.get_fps() -> number", "local fps = engine.get_fps()\nrender.text(16, 16, string.format(\"%.0f FPS\", fps), render.color(74, 222, 128, 255))", "Returns the current smoothed frame rate." },
+				{ "engine.get_delta_time", "engine.get_delta_time() -> seconds", "local dt = engine.get_delta_time()", "Alias of render.delta_time — fractional seconds since the last rendered frame." },
 				{ "engine.get_time", "engine.get_time() -> seconds", "local t = engine.get_time()\nprint(string.format(\"Up for %.1f s\", t))", "Returns fractional seconds elapsed since the process started." },
 				{ "engine.is_key_down", "engine.is_key_down(vk_code) -> bool", "if engine.is_key_down(0x46) then -- VK_F\n    render.text(100, 100, \"F HELD\", render.color(74, 222, 128, 255))\nend", "Alias of client.is_key_down — checks real-time physical key press state using a Windows Virtual Key code." }
+			};
+
+			static const std::vector<doc_item> k_math_docs = {
+				{ "math.clamp", "math.clamp(v, lo, hi) -> number", "local hp = math.clamp(hp, 0, 100)", "Clamps a value into the inclusive range [lo, hi]." },
+				{ "math.lerp", "math.lerp(a, b, t) -> number", "local x = 100 + math.lerp(0, 200, 0.5)", "Linear interpolation between a and b by factor t. t=0 returns a, t=1 returns b." },
+				{ "math.saturate", "math.saturate(t) -> number", "local a = math.saturate(alpha)", "Clamps a value into [0, 1]." },
+				{ "math.pingpong", "math.pingpong(t, len) -> number", "local x = 100 + math.pingpong(engine.get_time(), 60)", "Oscillates between 0 and len as t grows, looping forever. Useful for animations." },
+				{ "math.normalize_yaw", "math.normalize_yaw(yaw) -> number", "local y = math.normalize_yaw(450) -- 90", "Wraps a yaw angle into the range (-180, 180] degrees." },
+				{ "math.angle_diff", "math.angle_diff(a, b) -> number", "local d = math.angle_diff(target_yaw, my_yaw)", "Returns the shortest signed angular difference between two yaws in degrees." },
+				{ "math.distance", "math.distance(a, b) -> number", "local me = client.get_local()\nlocal p = client.get_players()[1]\nlocal d = math.distance(me.origin, p.origin)", "Distance between two points. Accepts two {x,y,z} tables or six raw coordinates." },
+				{ "math.vector_to_angle", "math.vector_to_angle(x, y, z) -> pitch, yaw", "local p, y = math.vector_to_angle(vx, vy, vz)", "Converts a direction vector into pitch and yaw angles in degrees (FPS convention)." },
+				{ "math.randomf", "math.randomf(min, max) -> number", "local n = math.randomf(0.0, 1.0)", "Returns a uniform random float in the inclusive range [min, max]." }
+			};
+
+			static const std::vector<doc_item> k_convar_docs = {
+				{ "convar.get", "convar.get(name) -> value", "local sv = convar.get(\"sv_cheats\")\nlocal sens = convar.get(\"sensitivity\")\nprint(sv, sens)", "Reads the current value of a registered console variable. Returns a string, number, or boolean matching its type, or nil if the convar does not exist. Read-only — scripts cannot execute console commands." }
 			};
 
 			const auto* cur_items = &k_events_docs;
 			if ( this->m_doc_category == 1 ) cur_items = &k_render_docs;
 			else if ( this->m_doc_category == 2 ) cur_items = &k_client_docs;
 			else if ( this->m_doc_category == 3 ) cur_items = &k_engine_docs;
+			else if ( this->m_doc_category == 4 ) cur_items = &k_math_docs;
+			else if ( this->m_doc_category == 5 ) cur_items = &k_convar_docs;
 
 			if ( this->m_doc_item >= static_cast< int >( cur_items->size( ) ) )
 			{

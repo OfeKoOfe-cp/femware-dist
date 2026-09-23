@@ -400,7 +400,11 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 - **Clean SVG Icon System**: Document and folder vector icons for script browser.
 - **Lua Console**: Tagged, color-coded log chips with timestamps, auto-scroll to newest entries, and copy-to-clipboard.
 - **In-Game Documentation**: Browsable API reference with syntax-highlighted snippets and one-click Copy / Insert-to-Studio.
-- **Lua API**: `render` (text, shapes, gradients, world-to-screen), `client` (local, players, weapon, cursor, input), `engine` (in-game state, map, ping, time), and `events` (render callbacks).
+- **Sandboxed Runtime**: Stdlib stripped of `os`, `io`, `debug`, `package`, and bytecode-loading surfaces; scripts cannot touch disk or the host process.
+- **Instruction Watchdog**: Every top-level run and render callback runs under an instruction budget — runaway loops abort with an error instead of freezing the frame.
+- **Error Handling**: A callback that errors 8 consecutive times is auto-unregistered and logged; GC is incrementally tuned with a bounded per-frame step.
+- **Lua API**: `render` (text, shapes, gradients, polylines, triangles, outlined/shadowed text, world-to-screen), `client` (local, eye pos, players, weapon, cursor, input), `engine` (in-game state, map, ping, fps, time), `convar` (read-only typed cvar access), and `events` (render callbacks).
+- **Math Extensions**: `clamp`, `lerp`, `saturate`, `pingpong`, `normalize_yaw`, `angle_diff`, `distance`, `vector_to_angle`, `randomf` on top of the standard math library.
 - **Full Reference**: See [LUA_API.md](LUA_API.md) for the complete binding table.
 
 ### Config & Serialization System

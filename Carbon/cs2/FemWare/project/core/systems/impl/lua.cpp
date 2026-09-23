@@ -6,12 +6,39 @@
 #include <utilities/addresses/addresses.hpp>
 #include <updater/updater.hpp>
 #include <protection/game_addresses.hpp>
+#include <random>
 
 namespace systems {
 	using ::lua_State;
 
-	namespace {
+namespace {
 		static xdraw::draw_list* s_current_draw_list{ nullptr };
+
+		// Scratch buffer reused by the polyline helpers — zero steady-state allocation per frame.
+		static thread_local std::vector<float> s_poly_points{};
+
+		// Instruction-count watchdog. Lua runs inside the render loop, so a runaway loop
+		// must be aborted instead of freezing the frame. Each callback gets its own budget.
+		inline constexpr int k_watchdog_top_level = 30'000'000;
+		inline constexpr int k_watchdog_callback = 8'000'000;
+		inline constexpr int k_max_consecutive_errors = 8;
+		static int s_watchdog_limit = k_watchdog_callback;
+
+		static void lua_watchdog_hook( lua_State* L, lua_Debug* )
+		{
+			luaL_error( L, "script aborted: exceeded the %d-instruction budget", s_watchdog_limit );
+		}
+
+		static void install_watchdog( lua_State* L, int limit )
+		{
+			s_watchdog_limit = limit;
+			lua_sethook( L, lua_watchdog_hook, LUA_MASKCOUNT, limit );
+		}
+
+		static void remove_watchdog( lua_State* L )
+		{
+			lua_sethook( L, nullptr, 0, 0 );
+		}
 
 		// Helper to read color from Lua stack: supports either (r, g, b, [a]) OR a color table { r, g, b, [a] } or { [1], [2], [3], [4] }
 		static xdraw::color get_lua_color( lua_State* L, int start_idx )
@@ -320,12 +347,16 @@ namespace systems {
 			lua_pushinteger( L, local.team );
 			lua_settable( L, -3 );
 
-			lua_pushstring( L, "is_alive" );
+lua_pushstring( L, "is_alive" );
 			lua_pushboolean( L, local.is_alive );
 			lua_settable( L, -3 );
 
 			lua_pushstring( L, "is_scoped" );
 			lua_pushboolean( L, is_scoped );
+			lua_settable( L, -3 );
+
+			lua_pushstring( L, "is_grounded" );
+			lua_pushboolean( L, view_pawn ? ( memory::read<std::uint32_t>( view_pawn + SCHEMA( "C_BaseEntity", "m_fFlags"_hash ) ) & 1 ) != 0 : false );
 			lua_settable( L, -3 );
 
 			const auto speed = velocity.length_2d( );
@@ -609,6 +640,340 @@ namespace systems {
 
 			return 1;
 		}
+// render.polyline({ {x,y}, ... } or { x1,y1,x2,y2,... }, col, [closed], [thick])
+		static int lua_render_polyline( lua_State* L )
+		{
+			if ( !s_current_draw_list ) return 0;
+			luaL_checktype( L, 1, LUA_TTABLE );
+
+			const auto n = static_cast< int >( luaL_len( L, 1 ) );
+			if ( n <= 0 )
+			{
+				return 0;
+			}
+
+			lua_rawgeti( L, 1, 1 );
+			const auto point_tables = lua_istable( L, -1 ) != 0;
+			lua_pop( L, 1 );
+
+			s_poly_points.clear( );
+			s_poly_points.reserve( static_cast< std::size_t >( n ) * 2 );
+			if ( point_tables )
+			{
+				for ( int i = 1; i <= n; ++i )
+				{
+					lua_rawgeti( L, 1, i );
+					lua_getfield( L, -1, "x" );
+					s_poly_points.push_back( static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ) );
+					lua_pop( L, 1 );
+					lua_getfield( L, -1, "y" );
+					s_poly_points.push_back( static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ) );
+					lua_pop( L, 1 );
+					lua_pop( L, 1 );
+				}
+			}
+			else
+			{
+				for ( int i = 1; i <= n; ++i )
+				{
+					lua_rawgeti( L, 1, i );
+					s_poly_points.push_back( static_cast< float >( luaL_checknumber( L, -1 ) ) );
+					lua_pop( L, 1 );
+				}
+			}
+
+			const auto col = get_lua_color( L, 2 );
+			const auto closed = lua_toboolean( L, 3 ) != 0;
+			const auto th = static_cast< float >( luaL_optnumber( L, 4, 1.0 ) );
+
+			s_current_draw_list->polyline( s_poly_points, col, closed, th, true );
+			return 0;
+		}
+
+		// render.triangle(x1, y1, x2, y2, x3, y3, col, [filled], [thick])
+		static int lua_render_triangle( lua_State* L )
+		{
+			if ( !s_current_draw_list ) return 0;
+			const auto x0 = static_cast< float >( luaL_checknumber( L, 1 ) );
+			const auto y0 = static_cast< float >( luaL_checknumber( L, 2 ) );
+			const auto x1 = static_cast< float >( luaL_checknumber( L, 3 ) );
+			const auto y1 = static_cast< float >( luaL_checknumber( L, 4 ) );
+			const auto x2 = static_cast< float >( luaL_checknumber( L, 5 ) );
+			const auto y2 = static_cast< float >( luaL_checknumber( L, 6 ) );
+			const auto col = get_lua_color( L, 7 );
+
+			const auto opt = lua_istable( L, 7 ) ? 8 : 11;
+			const auto filled = lua_toboolean( L, opt ) != 0;
+			const auto th = static_cast< float >( luaL_optnumber( L, opt + 1, 1.0 ) );
+
+			if ( filled )
+			{
+				s_current_draw_list->triangle_filled( x0, y0, x1, y1, x2, y2, col, true );
+			}
+			else
+			{
+				s_poly_points.clear( );
+				s_poly_points.reserve( 6 );
+				s_poly_points.push_back( x0 );
+				s_poly_points.push_back( y0 );
+				s_poly_points.push_back( x1 );
+				s_poly_points.push_back( y1 );
+				s_poly_points.push_back( x2 );
+				s_poly_points.push_back( y2 );
+				s_current_draw_list->polyline( s_poly_points, col, true, th, true );
+			}
+			return 0;
+		}
+
+		// render.text_outlined(x, y, str, col, [centered]) — 1px outline pass for readability
+		static int lua_render_text_outlined( lua_State* L )
+		{
+			if ( !s_current_draw_list ) return 0;
+			const auto x = static_cast< float >( luaL_checknumber( L, 1 ) );
+			const auto y = static_cast< float >( luaL_checknumber( L, 2 ) );
+			const char* text = luaL_checkstring( L, 3 );
+			const auto col = get_lua_color( L, 4 );
+			const auto centered = lua_istable( L, 4 )
+				? lua_toboolean( L, 5 ) != 0
+				: lua_toboolean( L, 8 ) != 0;
+
+			if ( centered )
+			{
+				const auto [tw, th] = xdraw::measure_text( text );
+				s_current_draw_list->text( x - tw * 0.5f, y, text, col, xdraw::text_style::outlined );
+			}
+			else
+			{
+				s_current_draw_list->text( x, y, text, col, xdraw::text_style::outlined );
+			}
+			return 0;
+		}
+
+		// render.text_shadowed(x, y, str, col, [centered])
+		static int lua_render_text_shadowed( lua_State* L )
+		{
+			if ( !s_current_draw_list ) return 0;
+			const auto x = static_cast< float >( luaL_checknumber( L, 1 ) );
+			const auto y = static_cast< float >( luaL_checknumber( L, 2 ) );
+			const char* text = luaL_checkstring( L, 3 );
+			const auto col = get_lua_color( L, 4 );
+			const auto centered = lua_istable( L, 4 )
+				? lua_toboolean( L, 5 ) != 0
+				: lua_toboolean( L, 8 ) != 0;
+
+			if ( centered )
+			{
+				const auto [tw, th] = xdraw::measure_text( text );
+				s_current_draw_list->text( x - tw * 0.5f, y, text, col, xdraw::text_style::shadowed );
+			}
+			else
+			{
+				s_current_draw_list->text( x, y, text, col, xdraw::text_style::shadowed );
+			}
+			return 0;
+		}
+
+		// render.delta_time() -> seconds since the last frame (frame-independent animation helper)
+		static int lua_render_delta_time( lua_State* L )
+		{
+			lua_pushnumber( L, static_cast< lua_Number >( xdraw::delta_time( ) ) );
+			return 1;
+		}
+
+		// client.get_eye_pos() -> x, y, z
+		static int lua_client_get_eye_pos( lua_State* L )
+		{
+			const auto local = systems::g_local.get( );
+			const auto pawn = local.view_pawn( );
+			if ( !pawn )
+			{
+				lua_pushnumber( L, 0.0 );
+				lua_pushnumber( L, 0.0 );
+				lua_pushnumber( L, 0.0 );
+				return 3;
+			}
+
+			math::vector3 origin{};
+			if ( const auto scene = memory::read<std::uintptr_t>( pawn + SCHEMA( "C_BaseEntity", "m_pGameSceneNode"_hash ) ) )
+			{
+				origin = memory::read<math::vector3>( scene + SCHEMA( "CGameSceneNode", "m_vecAbsOrigin"_hash ) );
+			}
+			const auto eye = origin + memory::read<math::vector3>( pawn + SCHEMA( "C_BaseModelEntity", "m_vecViewOffset"_hash ) );
+
+			lua_pushnumber( L, static_cast< lua_Number >( eye.x ) );
+			lua_pushnumber( L, static_cast< lua_Number >( eye.y ) );
+			lua_pushnumber( L, static_cast< lua_Number >( eye.z ) );
+			return 3;
+		}
+
+		// engine.get_fps() -> smoothed frame rate
+		static int lua_engine_get_fps( lua_State* L )
+		{
+			lua_pushnumber( L, static_cast< lua_Number >( xdraw::framerate( ) ) );
+			return 1;
+		}
+
+		// engine.get_delta_time() -> seconds since the last frame
+		static int lua_engine_get_delta_time( lua_State* L )
+		{
+			lua_pushnumber( L, static_cast< lua_Number >( xdraw::delta_time( ) ) );
+			return 1;
+		}
+
+		// convar.get(name) -> value (string | number | boolean) or nil. Read-only.
+		static int lua_convar_get( lua_State* L )
+		{
+			const char* name = luaL_checkstring( L, 1 );
+			const auto cv = addresses::globals::cvar->find( ::protection::addresses::hash_const( name ) );
+			if ( !cv )
+			{
+				lua_pushnil( L );
+				return 1;
+			}
+
+			switch ( cv->m_type )
+			{
+			case 0: // CVTYPE_BOOL
+				lua_pushboolean( L, cv->get<bool>( ) );
+				return 1;
+			case 1: // CVTYPE_FLOAT
+				lua_pushnumber( L, static_cast< lua_Number >( cv->get<float>( ) ) );
+				return 1;
+			case 2: // CVTYPE_INT32
+				lua_pushinteger( L, cv->get<int>( ) );
+				return 1;
+			case 3: // CVTYPE_STRING
+			{
+				const auto str = memory::read_string( reinterpret_cast< std::uintptr_t >( cv->m_value.sz ), 256 );
+				lua_pushlstring( L, str.data( ), str.size( ) );
+				return 1;
+			}
+			default:
+				lua_pushnil( L );
+				return 1;
+			}
+		}
+
+		// math.clamp(v, lo, hi)
+		static int lua_math_clamp( lua_State* L )
+		{
+			const auto v = luaL_checknumber( L, 1 );
+			const auto lo = luaL_optnumber( L, 2, 0.0 );
+			const auto hi = luaL_optnumber( L, 3, 1.0 );
+			lua_pushnumber( L, std::clamp( v, lo, hi ) );
+			return 1;
+		}
+
+		// math.lerp(a, b, t)
+		static int lua_math_lerp( lua_State* L )
+		{
+			const auto a = luaL_checknumber( L, 1 );
+			const auto b = luaL_checknumber( L, 2 );
+			const auto t = luaL_checknumber( L, 3 );
+			lua_pushnumber( L, a + ( b - a ) * t );
+			return 1;
+		}
+
+		// math.saturate(t) -> clamp(v, 0, 1)
+		static int lua_math_saturate( lua_State* L )
+		{
+			lua_pushnumber( L, std::clamp( luaL_checknumber( L, 1 ), 0.0, 1.0 ) );
+			return 1;
+		}
+
+		// math.pingpong(t, len) -> 0..len..0..len oscillation
+		static int lua_math_pingpong( lua_State* L )
+		{
+			const auto t = static_cast< double >( luaL_checknumber( L, 1 ) );
+			const auto len = static_cast< double >( luaL_optnumber( L, 2, 1.0 ) );
+			if ( len <= 0.0 )
+			{
+				lua_pushnumber( L, 0.0 );
+				return 1;
+			}
+			const auto cycles = std::floor( t / len );
+			const auto phase = t - cycles * len;
+			lua_pushnumber( L, ( static_cast< long long >( cycles ) & 1 ) ? len - phase : phase );
+			return 1;
+		}
+
+		// math.normalize_yaw(yaw) -> wrap into (-180, 180]
+		static int lua_math_normalize_yaw( lua_State* L )
+		{
+			lua_pushnumber( L, std::remainder( luaL_checknumber( L, 1 ), 360.0 ) );
+			return 1;
+		}
+
+		// math.angle_diff(a, b) -> shortest signed difference in degrees, (-180, 180]
+		static int lua_math_angle_diff( lua_State* L )
+		{
+			lua_pushnumber( L, std::remainder( luaL_checknumber( L, 1 ) - luaL_checknumber( L, 2 ), 360.0 ) );
+			return 1;
+		}
+
+		// math.distance(x1,y1,z1, x2,y2,z2) or (vec_a, vec_b) -> world units
+		static int lua_math_distance( lua_State* L )
+		{
+			math::vector3 a{};
+			math::vector3 b{};
+			if ( lua_istable( L, 1 ) && lua_istable( L, 2 ) )
+			{
+				lua_getfield( L, 1, "x" ); a.x = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+				lua_getfield( L, 1, "y" ); a.y = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+				lua_getfield( L, 1, "z" ); a.z = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+				lua_getfield( L, 2, "x" ); b.x = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+				lua_getfield( L, 2, "y" ); b.y = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+				lua_getfield( L, 2, "z" ); b.z = static_cast< float >( luaL_optnumber( L, -1, 0.0 ) ); lua_pop( L, 1 );
+			}
+			else
+			{
+				a = math::vector3{
+					static_cast< float >( luaL_checknumber( L, 1 ) ),
+					static_cast< float >( luaL_checknumber( L, 2 ) ),
+					static_cast< float >( luaL_checknumber( L, 3 ) )
+				};
+				b = math::vector3{
+					static_cast< float >( luaL_checknumber( L, 4 ) ),
+					static_cast< float >( luaL_checknumber( L, 5 ) ),
+					static_cast< float >( luaL_checknumber( L, 6 ) )
+				};
+			}
+			lua_pushnumber( L, static_cast< lua_Number >( ( a - b ).length( ) ) );
+			return 1;
+		}
+
+		// math.vector_to_angle(x, y, z) -> pitch, yaw (degrees, FPS-style)
+		static int lua_math_vector_to_angle( lua_State* L )
+		{
+			constexpr double k_rad_to_deg = 57.295779513082320876798154814105;
+			const auto len = static_cast< double >( math::vector3{
+				static_cast< float >( luaL_checknumber( L, 1 ) ),
+				static_cast< float >( luaL_checknumber( L, 2 ) ),
+				static_cast< float >( luaL_checknumber( L, 3 ) )
+			}.length( ) );
+			if ( len < 0.0001 )
+			{
+				lua_pushnumber( L, 0.0 );
+				lua_pushnumber( L, 0.0 );
+				return 2;
+			}
+			const auto pitch = std::asin( std::clamp( -luaL_checknumber( L, 3 ) / len, -1.0, 1.0 ) ) * k_rad_to_deg;
+			const auto yaw = std::atan2( luaL_checknumber( L, 2 ), luaL_checknumber( L, 1 ) ) * k_rad_to_deg;
+			lua_pushnumber( L, pitch );
+			lua_pushnumber( L, yaw );
+			return 2;
+		}
+
+		// math.randomf(min, max) -> uniform float in [min, max]
+		static int lua_math_randomf( lua_State* L )
+		{
+			const auto lo = static_cast< double >( luaL_checknumber( L, 1 ) );
+			const auto hi = static_cast< double >( luaL_checknumber( L, 2 ) );
+			static std::mt19937_64 rng{ std::random_device{ }( ) };
+			std::uniform_real_distribution<double> dist( lo, hi );
+			lua_pushnumber( L, dist( rng ) );
+			return 1;
+		}
 	} // namespace
 
 	bool lua::initialize( )
@@ -625,22 +990,38 @@ namespace systems {
 			return false;
 		}
 
-		// Standard safe libraries
+// Standard safe libraries
 		luaL_openlibs( this->m_L );
+
+		// Scripting sandbox: strip stdlib surfaces that can touch the process or the disk.
+		for ( const char* blocked : { "os", "io", "debug", "package", "dofile", "loadfile", "load", "require", "collectgarbage" } )
+		{
+			lua_pushnil( this->m_L );
+			lua_setglobal( this->m_L, blocked );
+		}
+
+		// GC hysteresis tuned for a per-frame render loop: collect less eagerly, faster per step.
+		lua_gc( this->m_L, LUA_GCSETPAUSE, 150 );
+		lua_gc( this->m_L, LUA_GCSETSTEPMUL, 200 );
 
 // Register "render" table
 		lua_newtable( this->m_L );
 		lua_pushcfunction( this->m_L, lua_render_text ); lua_setfield( this->m_L, -2, "text" );
+		lua_pushcfunction( this->m_L, lua_render_text_outlined ); lua_setfield( this->m_L, -2, "text_outlined" );
+		lua_pushcfunction( this->m_L, lua_render_text_shadowed ); lua_setfield( this->m_L, -2, "text_shadowed" );
 		lua_pushcfunction( this->m_L, lua_render_line ); lua_setfield( this->m_L, -2, "line" );
 		lua_pushcfunction( this->m_L, lua_render_rect ); lua_setfield( this->m_L, -2, "rect" );
 		lua_pushcfunction( this->m_L, lua_render_rect_filled ); lua_setfield( this->m_L, -2, "rect_filled" );
 		lua_pushcfunction( this->m_L, lua_render_gradient_rect ); lua_setfield( this->m_L, -2, "gradient_rect" );
 		lua_pushcfunction( this->m_L, lua_render_circle ); lua_setfield( this->m_L, -2, "circle" );
 		lua_pushcfunction( this->m_L, lua_render_circle_filled ); lua_setfield( this->m_L, -2, "circle_filled" );
+		lua_pushcfunction( this->m_L, lua_render_polyline ); lua_setfield( this->m_L, -2, "polyline" );
+		lua_pushcfunction( this->m_L, lua_render_triangle ); lua_setfield( this->m_L, -2, "triangle" );
 		lua_pushcfunction( this->m_L, lua_render_color ); lua_setfield( this->m_L, -2, "color" );
 		lua_pushcfunction( this->m_L, lua_render_measure_text ); lua_setfield( this->m_L, -2, "measure_text" );
 		lua_pushcfunction( this->m_L, lua_client_screen_size ); lua_setfield( this->m_L, -2, "screen_size" );
 		lua_pushcfunction( this->m_L, lua_render_world_to_screen ); lua_setfield( this->m_L, -2, "world_to_screen" );
+		lua_pushcfunction( this->m_L, lua_render_delta_time ); lua_setfield( this->m_L, -2, "delta_time" );
 		lua_setglobal( this->m_L, "render" );
 
 		// Register "client" table
@@ -649,6 +1030,7 @@ namespace systems {
 		lua_pushcfunction( this->m_L, lua_client_log ); lua_setfield( this->m_L, -2, "log" );
 		lua_pushcfunction( this->m_L, lua_client_get_local ); lua_setfield( this->m_L, -2, "get_local" );
 		lua_pushcfunction( this->m_L, lua_client_get_weapon ); lua_setfield( this->m_L, -2, "get_weapon" );
+		lua_pushcfunction( this->m_L, lua_client_get_eye_pos ); lua_setfield( this->m_L, -2, "get_eye_pos" );
 		lua_pushcfunction( this->m_L, lua_client_is_key_down ); lua_setfield( this->m_L, -2, "is_key_down" );
 		lua_pushcfunction( this->m_L, lua_client_get_view_angles ); lua_setfield( this->m_L, -2, "get_view_angles" );
 		lua_pushcfunction( this->m_L, lua_client_get_cursor_pos ); lua_setfield( this->m_L, -2, "get_cursor_pos" );
@@ -665,10 +1047,30 @@ namespace systems {
 		lua_newtable( this->m_L );
 		lua_pushcfunction( this->m_L, lua_engine_get_ping ); lua_setfield( this->m_L, -2, "get_ping" );
 		lua_pushcfunction( this->m_L, lua_engine_get_time ); lua_setfield( this->m_L, -2, "get_time" );
+		lua_pushcfunction( this->m_L, lua_engine_get_fps ); lua_setfield( this->m_L, -2, "get_fps" );
+		lua_pushcfunction( this->m_L, lua_engine_get_delta_time ); lua_setfield( this->m_L, -2, "get_delta_time" );
 		lua_pushcfunction( this->m_L, lua_engine_is_in_game ); lua_setfield( this->m_L, -2, "is_in_game" );
 		lua_pushcfunction( this->m_L, lua_engine_get_map_name ); lua_setfield( this->m_L, -2, "get_map_name" );
 		lua_pushcfunction( this->m_L, lua_client_is_key_down ); lua_setfield( this->m_L, -2, "is_key_down" );
 		lua_setglobal( this->m_L, "engine" );
+
+		// Register "convar" table
+		lua_newtable( this->m_L );
+		lua_pushcfunction( this->m_L, lua_convar_get ); lua_setfield( this->m_L, -2, "get" );
+		lua_setglobal( this->m_L, "convar" );
+
+		// Register "math" extensions onto the existing standard math library
+		lua_getglobal( this->m_L, "math" );
+		lua_pushcfunction( this->m_L, lua_math_clamp ); lua_setfield( this->m_L, -2, "clamp" );
+		lua_pushcfunction( this->m_L, lua_math_lerp ); lua_setfield( this->m_L, -2, "lerp" );
+		lua_pushcfunction( this->m_L, lua_math_saturate ); lua_setfield( this->m_L, -2, "saturate" );
+		lua_pushcfunction( this->m_L, lua_math_pingpong ); lua_setfield( this->m_L, -2, "pingpong" );
+		lua_pushcfunction( this->m_L, lua_math_normalize_yaw ); lua_setfield( this->m_L, -2, "normalize_yaw" );
+		lua_pushcfunction( this->m_L, lua_math_angle_diff ); lua_setfield( this->m_L, -2, "angle_diff" );
+		lua_pushcfunction( this->m_L, lua_math_distance ); lua_setfield( this->m_L, -2, "distance" );
+		lua_pushcfunction( this->m_L, lua_math_vector_to_angle ); lua_setfield( this->m_L, -2, "vector_to_angle" );
+		lua_pushcfunction( this->m_L, lua_math_randomf ); lua_setfield( this->m_L, -2, "randomf" );
+		lua_pop( this->m_L, 1 );
 
 		// Register "entity" table
 		lua_newtable( this->m_L );
@@ -678,7 +1080,7 @@ namespace systems {
 		return true;
 	}
 
-	void lua::shutdown( )
+void lua::shutdown( )
 	{
 		std::lock_guard<std::mutex> lock( this->m_mutex );
 		if ( this->m_L )
@@ -688,6 +1090,7 @@ namespace systems {
 				luaL_unref( this->m_L, LUA_REGISTRYINDEX, ref );
 			}
 			this->m_render_callbacks.clear( );
+			this->m_render_error_counts.clear( );
 
 			lua_close( this->m_L );
 			this->m_L = nullptr;
@@ -717,12 +1120,13 @@ namespace systems {
 			}
 		}
 
-		// Clear previous callbacks so re-executing buffer replaces old script
+// Clear previous callbacks so re-executing buffer replaces old script
 		for ( const auto ref : this->m_render_callbacks )
 		{
 			luaL_unref( this->m_L, LUA_REGISTRYINDEX, ref );
 		}
 		this->m_render_callbacks.clear( );
+		this->m_render_error_counts.clear( );
 
 		const auto load_status = luaL_loadbuffer( this->m_L, buffer.data( ), buffer.size( ), "lua_script" );
 		if ( load_status != LUA_OK )
@@ -732,7 +1136,10 @@ namespace systems {
 			return false;
 		}
 
+		install_watchdog( this->m_L, k_watchdog_top_level );
 		const auto pcall_status = lua_pcall( this->m_L, 0, 0, 0 );
+		remove_watchdog( this->m_L );
+
 		if ( pcall_status != LUA_OK )
 		{
 			err_out = lua_tostring( this->m_L, -1 );
@@ -740,10 +1147,11 @@ namespace systems {
 			return false;
 		}
 
+		lua_gc( this->m_L, LUA_GCSTEP, 0 );
 		return true;
 	}
 
-	void lua::on_render( xdraw::draw_list& draw_list )
+void lua::on_render( xdraw::draw_list& draw_list )
 	{
 		if ( !this->m_L || this->m_render_callbacks.empty( ) )
 		{
@@ -753,16 +1161,43 @@ namespace systems {
 		std::lock_guard<std::mutex> lock( this->m_mutex );
 		s_current_draw_list = &draw_list;
 
-		for ( const auto ref : this->m_render_callbacks )
+		const auto callbacks = this->m_render_callbacks;
+		for ( const auto ref : callbacks )
 		{
 			lua_rawgeti( this->m_L, LUA_REGISTRYINDEX, ref );
 			if ( lua_isfunction( this->m_L, -1 ) )
 			{
-				if ( lua_pcall( this->m_L, 0, 0, 0 ) != LUA_OK )
+				install_watchdog( this->m_L, k_watchdog_callback );
+				const auto status = lua_pcall( this->m_L, 0, 0, 0 );
+				remove_watchdog( this->m_L );
+
+				if ( status != LUA_OK )
 				{
 					const char* err = lua_tostring( this->m_L, -1 );
-					rendering::g_menu.append_lua_log( "RUNTIME ERROR", err ? err : "Unknown runtime error", xdraw::color{ 248, 113, 113, 255 } );
+					auto& err_count = this->m_render_error_counts[ ref ];
+
+					if ( err_count < k_max_consecutive_errors )
+					{
+						rendering::g_menu.append_lua_log( "RUNTIME ERROR", err ? err : "Unknown runtime error", xdraw::color{ 248, 113, 113, 255 } );
+					}
+
+					if ( ++err_count >= k_max_consecutive_errors )
+					{
+						rendering::g_menu.append_lua_log( "RUNTIME ERROR", "Callback disabled after " + std::to_string( k_max_consecutive_errors ) + " consecutive errors — re-run the script to re-enable it.", xdraw::color{ 248, 113, 113, 255 } );
+						luaL_unref( this->m_L, LUA_REGISTRYINDEX, ref );
+						this->m_render_callbacks.erase( std::find( this->m_render_callbacks.begin( ), this->m_render_callbacks.end( ), ref ) );
+						this->m_render_error_counts.erase( ref );
+					}
+
 					lua_pop( this->m_L, 1 );
+				}
+				else
+				{
+					const auto it = this->m_render_error_counts.find( ref );
+					if ( it != this->m_render_error_counts.end( ) )
+					{
+						this->m_render_error_counts.erase( it );
+					}
 				}
 			}
 			else
@@ -771,6 +1206,7 @@ namespace systems {
 			}
 		}
 
+		lua_gc( this->m_L, LUA_GCSTEP, 0 );
 		s_current_draw_list = nullptr;
 	}
 
