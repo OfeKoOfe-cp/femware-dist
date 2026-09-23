@@ -15,6 +15,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <shellapi.h>
 
 namespace rendering {
 
@@ -676,7 +677,7 @@ namespace rendering {
 			{
 				const auto avail = xui::layout::avail( ).first;
 				constexpr float bar_gap = 4.0f;
-				const float bwidth = std::max( 40.0f, ( avail - bar_gap * 3.0f ) / 4.0f );
+				const float bwidth = std::max( 40.0f, ( avail - bar_gap * 4.0f ) / 5.0f );
 
 				if ( xui::button( "Run##lua_bottom", bwidth, 22.0f ) )
 				{
@@ -718,6 +719,11 @@ namespace rendering {
 					this->m_lua_editor_lines = { "" };
 					this->m_lua_cursor_line = 0;
 					this->m_lua_line_edit_buf.clear( );
+				}
+				xui::layout::same_line( );
+				if ( xui::button( "Docs##lua_bottom", bwidth, 22.0f ) )
+				{
+					ShellExecuteA( nullptr, "open", "https://github.com/OfeKoOfe-cp/femware-dist", nullptr, nullptr, SW_SHOWNORMAL );
 				}
 			}
 

@@ -126,7 +126,6 @@ namespace rendering {
 			entry model_mannequin{};
 			entry dock_lua{};
 			entry dock_console{};
-			entry dock_docs{};
 			entry dock_players{};
 			entry dock_save{};
 			entry dock_power{};
@@ -226,7 +225,6 @@ namespace rendering {
 		bool m_show_models{ false };
 		bool m_show_lua{ false };
 		bool m_show_lua_console{ false };
-		bool m_show_docs{ false };
 		bool m_show_players{ false };
 		float m_master_indicator_x{ -1.0f };
 		float m_master_indicator_w{ 0.0f };
@@ -285,14 +283,6 @@ namespace rendering {
 		std::string m_console_input_buf{};
 		std::size_t m_console_last_count{ 0 };
 
-		// Dedicated Documentation Workspace State
-		float m_docs_x{ 580.0f };
-		float m_docs_y{ 80.0f };
-		float m_docs_w{ 780.0f };
-		float m_docs_h{ 560.0f };
-		int m_doc_category{ 0 };
-		int m_doc_item{ 0 };
-
 		// Players Workspace State
 		float m_players_x{ 620.0f };
 		float m_players_y{ 60.0f };
@@ -338,7 +328,6 @@ namespace rendering {
 		void draw_top_master_bar( float sw, float sh );
 		void draw_lua_studio( float sw, float sh );
 		void draw_lua_console( float sw, float sh );
-		void draw_documentation( float sw, float sh );
 		void draw_players_inspector( float sw, float sh );
 		void draw_models_studio( float sw, float sh );
 

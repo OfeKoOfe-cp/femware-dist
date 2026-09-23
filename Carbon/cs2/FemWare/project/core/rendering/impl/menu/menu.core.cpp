@@ -44,7 +44,6 @@ namespace rendering {
 		this->m_textures.model_mannequin.resource = xdraw::load_svg( svgs::model_mannequin, 6.0f, &this->m_textures.model_mannequin.width, &this->m_textures.model_mannequin.height );
 		this->m_textures.dock_lua.resource = xdraw::load_svg( svgs::dock_lua, k_dock_icon_scale, &this->m_textures.dock_lua.width, &this->m_textures.dock_lua.height );
 		this->m_textures.dock_console.resource = xdraw::load_svg( svgs::dock_console, k_dock_icon_scale, &this->m_textures.dock_console.width, &this->m_textures.dock_console.height );
-		this->m_textures.dock_docs.resource = xdraw::load_svg( svgs::dock_docs, k_dock_icon_scale, &this->m_textures.dock_docs.width, &this->m_textures.dock_docs.height );
 		this->m_textures.dock_players.resource = xdraw::load_svg( svgs::dock_players, k_dock_icon_scale, &this->m_textures.dock_players.width, &this->m_textures.dock_players.height );
 		this->m_textures.dock_save.resource = xdraw::load_svg( svgs::dock_save, k_dock_icon_scale, &this->m_textures.dock_save.width, &this->m_textures.dock_save.height );
 		this->m_textures.dock_power.resource = xdraw::load_svg( svgs::dock_power, k_dock_icon_scale, &this->m_textures.dock_power.width, &this->m_textures.dock_power.height );

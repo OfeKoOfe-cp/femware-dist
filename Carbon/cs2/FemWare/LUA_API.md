@@ -1,8 +1,8 @@
-# Velocity — Lua Scripting API Reference
+# FemWare — Lua Scripting API Reference
 
-The Lua runtime exposes the global tables `render`, `client`, `engine`, `events`, `convar`, and
-`math` (extended). All of them are available to scripts loaded in the **Lua Studio** tab.
-Re-running a script replaces every previously registered callback.
+The Lua runtime exposes the global tables `render`, `client`, `engine`, `events`, `entity`,
+`globals`, `schema`, `convar`, and `math` (extended). All of them are available to scripts loaded
+in the **Lua Studio** tab. Re-running a script replaces every previously registered callback.
 
 ## Sandbox & Stability
 
@@ -84,6 +84,7 @@ render.gradient_rect(100, 100, 200, 30, c1, c2, true, 4.0)
 | `client.get_cursor_pos()` | mx, my | Mouse cursor position relative to the game window. |
 | `client.screen_size()` | w, h | Display viewport dimensions. |
 | `client.log(msg, [r, g, b])` | — | Prints a message to the Lua console. |
+| `client.set_clipboard(text)` | — | Copies a string to the Windows clipboard. |
 
 ```lua
 local me = client.get_local()
@@ -94,6 +95,26 @@ end
 local w, id = client.get_weapon()
 if w then
     render.text(16, 48, "Weapon: " .. w, render.color(255, 255, 255, 255))
+end
+```
+
+---
+
+## entity
+
+Entity access mirrors the player table shape produced by `client.get_players`; the two share the
+same ordering and field set.
+
+| Signature | Returns | Description |
+| --- | --- | --- |
+| `entity.get_local()` | table or nil | Same table as `client.get_local()`. |
+| `entity.get_players()` | array | Same list as `client.get_players()`. |
+| `entity.get_player(index)` | table or nil | A single player table by 1-based index into the player list. |
+
+```lua
+local enemy = entity.get_player(1)
+if enemy and enemy.is_alive then
+    client.log(enemy.name .. " has " .. enemy.health .. " HP")
 end
 ```
 
@@ -130,6 +151,42 @@ end
 local sens = convar.get("sensitivity")   -- number
 local sv   = convar.get("sv_cheats")     -- boolean
 local map  = convar.get("map")           -- string
+```
+
+---
+
+## globals
+
+Game variable snapshots from the global vars table. Values reflect the current server snapshot;
+each call reads live memory, so cache what you need per frame.
+
+| Signature | Returns | Description |
+| --- | --- | --- |
+| `globals.get_curtime()` | seconds | Server curtime in seconds (`0` when not in a match). |
+| `globals.get_tickcount()` | int | Current server tick (`0` when not in a match). |
+| `globals.get_screen_size()` | w, h | Display viewport dimensions (alias of `render.screen_size`). |
+
+```lua
+local t = globals.get_tickcount()
+client.log("tick " .. t)
+```
+
+---
+
+## schema
+
+Read-only access to the Source 2 schema table. Tooling for experimenters — you will rarely need
+it outside of diagnostics.
+
+| Signature | Returns | Description |
+| --- | --- | --- |
+| `schema.get(class_name, field_name)` | int or nil | Byte offset of a schema field within a class, or nil if the class/field is not present in the game's schema. |
+
+```lua
+local health_off = schema.get("C_BaseEntity", "m_iHealth")
+if health_off then
+    client.log("m_iHealth is at +" .. health_off)
+end
 ```
 
 ---

@@ -1,6 +1,6 @@
-# Velocity CS2 — Complete Feature Changelog & Reference
+# FemWare — Complete Feature Changelog & Reference
 
-A 1:1 inventory and changelog of all features, subsystems, and visual implementations in **Velocity CS2**.
+A 1:1 inventory and changelog of all features, subsystems, and visual implementations in **FemWare**.
 
 ---
 
@@ -34,7 +34,7 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
    - [Auto Edgejump & Edgestop](#auto-edgejump--edgestop)
    - [Fast Ladder](#fast-ladder)
    - [Accurate Slow-Walk](#accurate-slow-walk)
-   - [Velocity Diagnostics & Peak Trackers](#velocity-diagnostics--peak-trackers)
+   - [Speed Diagnostics & Peak Trackers](#speed-diagnostics--peak-trackers)
 4. [World & Atmosphere Modifiers](#4-world--atmosphere-modifiers)
    - [Weather Simulator](#weather-simulator)
    - [Volumetric Fog](#volumetric-fog)
@@ -60,7 +60,7 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
    - [Glove Changer](#glove-changer)
    - [Agent Changer](#agent-changer)
 7. [User Interface & Scripting Engine](#7-user-interface--scripting-engine)
-   - [Velocity Dark Glass Design System](#velocity-dark-glass-design-system)
+   - [FemWare Dark Glass Design System](#femware-dark-glass-design-system)
    - [Interactive 3D Model Preview](#interactive-3d-model-preview)
    - [Lua Scripting Studio](#lua-scripting-studio)
    - [Config & Serialization System](#config--serialization-system)
@@ -255,7 +255,7 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 ### Accurate Slow-Walk
 - **Silent Movement Clamping**: Restricts player movement velocity to `33 u/s`, maintaining full weapon accuracy and silent footsteps.
 
-### Velocity Diagnostics & Peak Trackers
+### Speed Diagnostics & Peak Trackers
 - **Real-Time Readout**: Displays horizontal velocity in units per second (`u/s`).
 - **Peak Indicator**: Records and displays maximum speed achieved during jumps and landings.
 
@@ -332,7 +332,7 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 - **Custom Sniper Scope Lines**: Clean crosshair lines with animated fade-in and glow.
 - **3D Cosmetic Hats**: `Cone`, `Halo`, `Double Rim`, `Hex Crown` with `Gradient`, `Wireframe`, and `Neon Rim` shading.
 - **Motion Trails**: Trailing ribbons, neon lines, or beads attached to feet, waist, or weapon.
-- **Velocity Counter & Graph**: Dark glass card with bold digital speed readout and real-time velocity graph.
+- **Speed Counter & Graph**: Dark glass card with bold digital speed readout and real-time velocity graph.
 - **Combat Badges**: On-screen status badges indicating active combat states: `DMG`, `HC`, `BAIM`, `FD`, `PEEK`.
 - **Hit/Kill Reminders (Event Logs)**: Rounded dark glass notification cards with skull/crosshair icons, pill badges, and damage values.
 
@@ -386,7 +386,7 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 
 ## 7. User Interface & Scripting Engine
 
-### Velocity Dark Glass Design System
+### FemWare Dark Glass Design System
 - **Acrylic Backdrop Blur**: Real-time background blur under all UI panels.
 - **Smooth Window Dragging**: Seamless window repositioning with focus resync (`WM_ACTIVATE` / `WM_SETFOCUS`) eliminating mouse snap bugs.
 - **Multi-Category Navigation**: Organized sidebar tabs: `Ragebot`, `Legitbot`, `Visuals`, `Movement`, `Changer`, `Misc`, `Config`, `Lua Studio`.
@@ -399,11 +399,11 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 - **Integrated IDE**: Code editor with syntax highlighting and font scaling.
 - **Clean SVG Icon System**: Document and folder vector icons for script browser.
 - **Lua Console**: Tagged, color-coded log chips with timestamps, auto-scroll to newest entries, and copy-to-clipboard.
-- **In-Game Documentation**: Browsable API reference with syntax-highlighted snippets and one-click Copy / Insert-to-Studio.
+- **Documentation Button**: Opens the full Lua API reference on GitHub in the default browser.
 - **Sandboxed Runtime**: Stdlib stripped of `os`, `io`, `debug`, `package`, and bytecode-loading surfaces; scripts cannot touch disk or the host process.
 - **Instruction Watchdog**: Every top-level run and render callback runs under an instruction budget — runaway loops abort with an error instead of freezing the frame.
 - **Error Handling**: A callback that errors 8 consecutive times is auto-unregistered and logged; GC is incrementally tuned with a bounded per-frame step.
-- **Lua API**: `render` (text, shapes, gradients, polylines, triangles, outlined/shadowed text, world-to-screen), `client` (local, eye pos, players, weapon, cursor, input), `engine` (in-game state, map, ping, fps, time), `convar` (read-only typed cvar access), and `events` (render callbacks).
+- **Lua API**: `render` (text, shapes, gradients, polylines, triangles, outlined/shadowed text, world-to-screen, delta time), `client` (local, eye pos, players, weapon, cursor, input, clipboard), `entity` (indexed player access), `globals` (server curtime and tick count), `schema` (read-only field offset lookup), `engine` (in-game state, map, ping, fps, time), `convar` (read-only typed cvar access), and `events` (render callbacks).
 - **Math Extensions**: `clamp`, `lerp`, `saturate`, `pingpong`, `normalize_yaw`, `angle_diff`, `distance`, `vector_to_angle`, `randomf` on top of the standard math library.
 - **Full Reference**: See [LUA_API.md](LUA_API.md) for the complete binding table.
 
@@ -413,4 +413,4 @@ A 1:1 inventory and changelog of all features, subsystems, and visual implementa
 - **Instant Import/Export**: Quick clipboard and disk profile loading.
 
 ---
-*Generated for Velocity CS2 Client.*
+*Generated for the FemWare client.*

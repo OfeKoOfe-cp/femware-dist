@@ -250,11 +250,6 @@ namespace rendering {
 			this->draw_lua_console( sw, sh );
 		}
 
-		if ( this->m_show_docs )
-		{
-			this->draw_documentation( sw, sh );
-		}
-
 		if ( this->m_show_players )
 		{
 			this->draw_players_inspector( sw, sh );

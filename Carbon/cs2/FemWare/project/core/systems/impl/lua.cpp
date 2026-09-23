@@ -284,13 +284,92 @@ namespace {
 			return 0;
 		}
 
-		// client.screen_size() -> w, h
+// client.screen_size() -> w, h
 		static int lua_client_screen_size( lua_State* L )
 		{
 			const auto [sw, sh] = xdraw::viewport_size( );
 			lua_pushnumber( L, static_cast< lua_Number >( sw ) );
 			lua_pushnumber( L, static_cast< lua_Number >( sh ) );
 			return 2;
+		}
+
+		// client.set_clipboard(text) -> copies a string to the Windows clipboard
+		static int lua_client_set_clipboard( lua_State* L )
+		{
+			const char* text = luaL_checkstring( L, 1 );
+			if ( !OpenClipboard( nullptr ) )
+			{
+				return 0;
+			}
+
+			EmptyClipboard( );
+			const auto len = static_cast< SIZE_T >( std::strlen( text ) ) + 1;
+			if ( const auto h_mem = GlobalAlloc( GMEM_MOVEABLE, len ) )
+			{
+				std::memcpy( GlobalLock( h_mem ), text, len );
+				GlobalUnlock( h_mem );
+				SetClipboardData( CF_TEXT, h_mem );
+			}
+			CloseClipboard( );
+			return 0;
+		}
+
+// globals.get_curtime() -> server curtime in seconds (0 when not in a match)
+		static int lua_globals_get_curtime( lua_State* L )
+		{
+			const auto gv = memory::read<std::uintptr_t>( addresses::globals::global_vars );
+			lua_pushnumber( L, static_cast< lua_Number >( gv ? memory::read<float>( gv + 0x30 ) : 0.0f ) );
+			return 1;
+		}
+
+		// globals.get_tickcount() -> current server tick (0 when not in a match)
+		static int lua_globals_get_tickcount( lua_State* L )
+		{
+			const auto gv = memory::read<std::uintptr_t>( addresses::globals::global_vars );
+			lua_pushinteger( L, gv ? memory::read<int>( gv + 0x44 ) : 0 );
+			return 1;
+		}
+
+		// globals.get_screen_size() -> w, h
+		static int lua_globals_get_screen_size( lua_State* L )
+		{
+			const auto [sw, sh] = xdraw::viewport_size( );
+			lua_pushnumber( L, static_cast< lua_Number >( sw ) );
+			lua_pushnumber( L, static_cast< lua_Number >( sh ) );
+			return 2;
+		}
+
+		// schema.get(class_name, field_name) -> field offset or nil when not found
+		static int lua_schema_get_field( lua_State* L )
+		{
+			const char* class_name = luaL_checkstring( L, 1 );
+			const char* field_name = luaL_checkstring( L, 2 );
+
+			const auto offset = systems::schemas::lookup( class_name, ::protection::addresses::hash_const( field_name ) );
+			if ( !offset )
+			{
+				lua_pushnil( L );
+				return 1;
+			}
+			lua_pushinteger( L, offset );
+			return 1;
+		}
+
+		// entity.get_player(index) -> player table (1-based) or nil
+		static int lua_client_get_players( lua_State* L );
+		static int lua_entity_get_player( lua_State* L )
+		{
+			const auto n = static_cast< int >( luaL_checkinteger( L, 1 ) );
+			lua_client_get_players( L );
+			lua_rawgeti( L, -1, n );
+			if ( lua_isnil( L, -1 ) )
+			{
+				lua_pop( L, 2 );
+				lua_pushnil( L );
+				return 1;
+			}
+			lua_remove( L, -2 );
+			return 1;
 		}
 
 		// client.log(text, [r, g, b])
@@ -1035,7 +1114,20 @@ lua_pushstring( L, "is_alive" );
 		lua_pushcfunction( this->m_L, lua_client_get_view_angles ); lua_setfield( this->m_L, -2, "get_view_angles" );
 		lua_pushcfunction( this->m_L, lua_client_get_cursor_pos ); lua_setfield( this->m_L, -2, "get_cursor_pos" );
 		lua_pushcfunction( this->m_L, lua_client_get_players ); lua_setfield( this->m_L, -2, "get_players" );
+		lua_pushcfunction( this->m_L, lua_client_set_clipboard ); lua_setfield( this->m_L, -2, "set_clipboard" );
 		lua_setglobal( this->m_L, "client" );
+
+		// Register "globals" table
+		lua_newtable( this->m_L );
+		lua_pushcfunction( this->m_L, lua_globals_get_curtime ); lua_setfield( this->m_L, -2, "get_curtime" );
+		lua_pushcfunction( this->m_L, lua_globals_get_tickcount ); lua_setfield( this->m_L, -2, "get_tickcount" );
+		lua_pushcfunction( this->m_L, lua_globals_get_screen_size ); lua_setfield( this->m_L, -2, "get_screen_size" );
+		lua_setglobal( this->m_L, "globals" );
+
+		// Register "schema" table
+		lua_newtable( this->m_L );
+		lua_pushcfunction( this->m_L, lua_schema_get_field ); lua_setfield( this->m_L, -2, "get" );
+		lua_setglobal( this->m_L, "schema" );
 
 		// Register "events" table
 		lua_newtable( this->m_L );
@@ -1075,6 +1167,8 @@ lua_pushstring( L, "is_alive" );
 		// Register "entity" table
 		lua_newtable( this->m_L );
 		lua_pushcfunction( this->m_L, lua_client_get_local ); lua_setfield( this->m_L, -2, "get_local" );
+		lua_pushcfunction( this->m_L, lua_client_get_players ); lua_setfield( this->m_L, -2, "get_players" );
+		lua_pushcfunction( this->m_L, lua_entity_get_player ); lua_setfield( this->m_L, -2, "get_player" );
 		lua_setglobal( this->m_L, "entity" );
 
 		return true;

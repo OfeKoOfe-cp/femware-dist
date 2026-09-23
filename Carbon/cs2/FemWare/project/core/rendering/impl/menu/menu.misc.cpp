@@ -168,12 +168,12 @@ namespace rendering {
 				xui::end_child( );
 			}
 
-			// ── Right Column: Velocity & Movement Indicators ──
+			// ── Right Column: Speed & Movement Indicators ──
 			xui::layout::set_cursor( right_x - wx, body_y - wy );
 
 			if ( xui::begin_child( "##misc_speedometer", col_w, this->m_body_h, true ) )
 			{
-				group_header( "Velocity & Indicators" );
+				group_header( "Speed & Indicators" );
 				xui::checkbox( "velocity counter", hud.m_velocity.counter );
 				xui::checkbox( "velocity chart", hud.m_velocity.chart );
 				if ( xui::begin_popup( "##velocity_hud_popup", 220.0f ) )

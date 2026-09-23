@@ -10,7 +10,7 @@ FreeType is declared in `vcpkg.json` and is restored automatically by Visual Stu
 
 ## Documentation
 
-- [Lua Scripting API](cs2/FemWare/LUA_API.md) — the full `render`, `client`, `engine`, and `events` binding reference (also browsable in-game under Lua Studio → Documentation).
+- [Lua Scripting API](cs2/FemWare/LUA_API.md) — the full `render`, `client`, `engine`, `events`, `entity`, `globals`, `schema`, `convar`, and `math` binding reference.
 - [Feature Changelog](cs2/FemWare/CHANGELOG.md) — a 1:1 inventory of all features and subsystems.
 
 ## Build
