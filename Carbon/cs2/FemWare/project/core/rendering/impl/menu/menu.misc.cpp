@@ -472,6 +472,27 @@ namespace rendering {
 					xui::end_popup( );
 				}
 
+				xui::layout::separator( );
+
+				group_header( "Ambience" );
+				xui::checkbox( "background blur", m.m_ambience.blur );
+				if ( xui::begin_popup( "##bg_blur_popup", 220.0f ) )
+				{
+					xui::slider_float( "intensity##bgblur", m.m_ambience.blur_intensity, 0.1f, 1.0f, "%.0f%%" );
+					xui::end_popup( );
+				}
+
+				xui::checkbox( "snowfall", m.m_ambience.snow );
+				if ( xui::begin_popup( "##snow_popup", 220.0f ) )
+				{
+					xui::slider_int( "amount##snow", m.m_ambience.snow_count, 10, 400 );
+					xui::slider_float( "speed##snow", m.m_ambience.snow_speed, 10.0f, 200.0f, "%.0f" );
+					xui::slider_float( "drift##snow", m.m_ambience.snow_drift, 0.0f, 80.0f, "%.0f" );
+					xui::slider_float( "size##snow", m.m_ambience.snow_size, 1.0f, 6.0f, "%.1f" );
+					xui::slider_float( "opacity##snow", m.m_ambience.snow_opacity, 0.05f, 1.0f, "%.0f%%" );
+					xui::end_popup( );
+				}
+
 				xui::end_child( );
 			}
 		}

@@ -81,6 +81,7 @@ namespace rendering {
 
         void toggle( ) { this->m_open = !this->m_open; }
 		[[nodiscard]] bool is_open( ) const { return this->m_open; }
+		void set_draw_overlay_ctx( bool overlay ) { this->m_draw_on_overlay = overlay; }
 		void apply_saved_cursor( );
 		void apply_theme_preset( int preset );
 		void apply_custom_accent( xdraw::color col );
@@ -147,6 +148,7 @@ namespace rendering {
         void draw_status_bar( float x, float y, float w, float h );
         void draw_linoria_tab_bar( float x, float y, float w );
         void draw_linoria_subtab_bar( float x, float y, float w );
+        void draw_ambience( float sw, float sh );
         void try_load_user_avatar( );
         void sync_theme_style( ) const;
         void draw_search_results( float x, float y, float w, float h );
@@ -168,6 +170,7 @@ namespace rendering {
         bool m_config_cloud_refresh_pending{};
         bool m_config_advanced_open{};
         bool m_last_open{ true };
+		bool m_draw_on_overlay{ false };
         float m_open_anim{ 1.0f };
         std::uint8_t m_saved_relative_mouse{};
 		bool m_has_saved_cursor{};
@@ -317,6 +320,18 @@ namespace rendering {
 		int m_players_team_filter{ 0 };
 		int m_players_selected{ -1 };
 		float m_players_selected_refresh{ 0.0f };
+
+		struct snow_flake
+		{
+			float x{};
+			float y{};
+			float vx{};
+			float vy{};
+			float size{};
+			std::uint8_t alpha{ 255 };
+		};
+		std::vector<snow_flake> m_snow{};
+		float m_snow_time{ 0.0f };
 
 		void draw_top_master_bar( float sw, float sh );
 		void draw_lua_studio( float sw, float sh );
