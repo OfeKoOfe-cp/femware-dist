@@ -19,6 +19,9 @@
 | `render.delta_time()` | seconds | Time since the last rendered frame — for frame-independent animation. |
 | `render.world_to_screen(x, y, z)` | sx, sy, vis | Projects world coordinates to screen space (accepts a `{x, y, z}` table). |
 
+Every drawing function accepts either a color table from `render.color(...)` or a color table
+built as `{r, g, b, [a]}`. Raw `r, g, b, [a]` arguments are also accepted.
+
 ```lua
 local c1 = render.color(255, 95, 175, 255)
 local c2 = render.color(140, 70, 240, 0)

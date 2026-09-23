@@ -35,8 +35,6 @@ end)
 
 ## Reference
 
-- [Getting started — callbacks](getting-started/callbacks.md)
-- [Getting started — scripting rules](getting-started/scripting-rules.md)
 - [events](modules/events.md)
 - [render](modules/render.md)
 - [client](modules/client.md)
