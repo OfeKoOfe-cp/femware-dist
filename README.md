@@ -46,8 +46,6 @@ end)
 - [schema](modules/schema.md)
 - [convar](modules/convar.md)
 - [math](modules/math.md)
-- [Cookbook — ESP skeleton](cookbook/esp-skeleton.md)
-- [Cookbook — player tags](cookbook/player-tags.md)
 
 ## Releases
 
