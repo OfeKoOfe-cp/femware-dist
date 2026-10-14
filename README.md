@@ -38,3 +38,13 @@ Reference for the Lua 5.4 runtime embedded in the FemWare.
 ## Releases
 
 Signed payloads are published on the [releases page](https://github.com/OfeKoOfe-cp/femware-dist/releases).
+
+Each release ships two files:
+
+- `payload.bin` — the encrypted cheat payload.
+
+The payload resolves function addresses live from the public CS2 SDK database
+(mirrored by [cs2-sdk.com](https://cs2-sdk.com) / `scros22/cs2-universal-offsets`)
+at load time. Every candidate address is byte-verified against the installed
+game modules; when the SDK snapshot is stale or unreachable, the embedded
+pattern scan runs automatically as a fallback.
